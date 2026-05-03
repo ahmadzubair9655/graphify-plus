@@ -138,6 +138,53 @@ def _check_skipped(repo: Path) -> list[Diagnostic]:
     return out
 
 
+def _check_audit_capability(repo: Path) -> list[Diagnostic]:
+    """Surface audit-probe capability gaps before the operator runs `gp audit`.
+
+    Three probes (edge_deletion_stability, modularity_quality,
+    confidence_drift) require enrichment data that ``gp init`` alone
+    does not produce — Louvain communities and INFERRED-confidence
+    edges. If those signals are absent, the probes will SKIP. Tell the
+    operator NOW so they don't first run an audit, see SKIPs, and have
+    to backtrack.
+    """
+    db = cache_path(repo)
+    if not db.exists():
+        return []
+    try:
+        store = Store(db, integrity_check=False)
+    except Exception:  # noqa: BLE001
+        return []
+    try:
+        symbols = store.all_symbols()
+        edges = store.all_edges()
+    finally:
+        store.close()
+    needs_community = not any("community" in s for s in symbols)
+    needs_inferred = sum(1 for e in edges if e.get("confidence_score") is not None) < 3
+    out: list[Diagnostic] = []
+    if needs_community or needs_inferred:
+        gaps: list[str] = []
+        if needs_community:
+            gaps.append("edge_deletion_stability + modularity_quality (need community)")
+        if needs_inferred:
+            gaps.append("confidence_drift (needs ≥3 INFERRED-confidence edges)")
+        out.append(
+            Diagnostic(
+                "Audit capability",
+                WARN,
+                f"{len(gaps)} audit probe set(s) will SKIP without enrichment",
+                remediation=(
+                    "Run 'gp enrich --community' and/or feed telemetry "
+                    "before 'gp audit' to lift the trust score:\n      " + "; ".join(gaps)
+                ),
+            )
+        )
+    else:
+        out.append(Diagnostic("Audit capability", OK, "all probes have required signals"))
+    return out
+
+
 def _check_debug_log(repo: Path) -> list[Diagnostic]:
     log = repo / ".graphify_plus" / "debug.log"
     if not log.exists() or log.stat().st_size == 0:
@@ -172,6 +219,7 @@ def diagnose(repo: Path) -> list[Diagnostic]:
     out.extend(_check_system())
     out.extend(_check_cache(repo))
     out.extend(_check_skipped(repo))
+    out.extend(_check_audit_capability(repo))
     out.extend(_check_debug_log(repo))
     return out
 
