@@ -1,3 +1,4 @@
+# TODO: flip to hard gate once illustrative-only blocks are tagged with doctest:skip
 """11.9 — README doc verification.
 
 Walks ``README.md`` (and any other docs added in future), extracts every

@@ -294,6 +294,18 @@ def _dispatch(cmd: str, rest: list[str]) -> int:
             return 1
         return 0
 
+    if cmd == "explain":
+        from graphify_plus.interface.cli.explain_cmd import explain_cmd
+
+        try:
+            explain_cmd.main(args=rest, prog_name="graphify-plus explain", standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd == "context":
         from graphify_plus.interface.cli.context_cmd import context_cmd
 
