@@ -137,18 +137,35 @@ def _set_worker_limits(timeout_sec: float, mem_mb: int) -> None:
         pass
 
 
+# Process-scoped flag — only set inside ProcessPoolExecutor workers via
+# initializer. Synchronous calls from the parent (and tests) leave it
+# False so RLIMIT_AS / SIGALRM do not leak into the test runner.
+_IN_WORKER = False
+
+
+def _worker_initializer() -> None:  # pragma: no cover — runs in child only
+    global _IN_WORKER
+    _IN_WORKER = True
+
+
 def _parse_one(args: tuple[str, str, float, int]) -> tuple[list[Symbol], list[Edge], dict]:
     """Parse one file under wall-clock + memory limits.
 
     Returns a 3-tuple ``(symbols, edges, status)`` where ``status`` is
     ``{"ok": bool, "reason": str | None, "error": str | None}``.
+
+    Limits (RLIMIT_AS + SIGALRM) only apply inside ProcessPoolExecutor
+    workers. Synchronous calls from the parent skip them — applying
+    RLIMIT_AS to the test runner crashes pytest's own stack formatter
+    on Linux.
     """
     root_str, rel_str, timeout_sec, mem_mb = args
     full = Path(root_str) / rel_str
     ad = adapter_for(full.name)
     if ad is None:
         return [], [], {"ok": False, "reason": "unsupported", "error": ""}
-    _set_worker_limits(timeout_sec, mem_mb)
+    if _IN_WORKER:
+        _set_worker_limits(timeout_sec, mem_mb)
     try:
         source = full.read_bytes()
         syms, edges = ad.parse(Path(rel_str), source)
@@ -160,7 +177,7 @@ def _parse_one(args: tuple[str, str, float, int]) -> tuple[list[Symbol], list[Ed
         # install below; treat any exception as a soft skip.
         return [], [], {"ok": False, "reason": "parse_error", "error": f"{type(e).__name__}: {e}"}
     finally:
-        if sys.platform != "win32":  # pragma: no branch
+        if _IN_WORKER and sys.platform != "win32":  # pragma: no branch
             signal.alarm(0)
 
 
@@ -271,7 +288,10 @@ def ingest(
             syms_all.append(_stub_for(rel, reason or "unknown", error))
 
     if parallel and len(args) >= 8:
-        with ProcessPoolExecutor(max_workers=os.cpu_count() or 4) as ex:
+        with ProcessPoolExecutor(
+            max_workers=os.cpu_count() or 4,
+            initializer=_worker_initializer,
+        ) as ex:
             for (_, rel, *_), (s, e, status) in zip(
                 args, ex.map(_parse_one, args, chunksize=4), strict=True
             ):
