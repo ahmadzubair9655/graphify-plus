@@ -45,6 +45,15 @@ _PROBE_FUNCS = {
 
 
 def _load_graph(path: Path) -> nx.Graph:
+    # Two on-disk formats coexist:
+    #   * legacy single-blob ``graph.json`` with {"nodes": [...], "edges": [...]}
+    #   * v5+ ``graph_symbols.jsonl`` produced by ``gp init`` — first line is
+    #     a {"_meta": {...}} header, subsequent lines are
+    #     {"kind": "symbol"|"edge", ...fields}. Symbol id lives at "id";
+    #     edge endpoints live at "src"/"dst" (not "source"/"target").
+    # Detect by extension; .jsonl wins, everything else is treated as legacy.
+    if path.suffix == ".jsonl":
+        return _load_graph_jsonl(path)
     with open(path) as f:
         data = json.load(f)
     G = nx.Graph()
@@ -55,6 +64,32 @@ def _load_graph(path: Path) -> nx.Graph:
     for e in data.get("edges", data.get("links", [])):
         attrs = {k: v for k, v in e.items() if k not in ("source", "target")}
         G.add_edge(e.get("source"), e.get("target"), **attrs)
+    return G
+
+
+def _load_graph_jsonl(path: Path) -> nx.Graph:
+    # Note on the init writer: it emits records as ``{"kind": "symbol", **s}``
+    # / ``{"kind": "edge", **e}``, but the spread overrides the leading
+    # marker because Symbol/Edge dicts carry their own "kind" field
+    # (module/function/calls/contains/...). So we must discriminate by
+    # field presence — header has "_meta", edges have src+dst, symbols
+    # have id.
+    G = nx.Graph()
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            if "_meta" in rec:
+                continue
+            if "src" in rec and "dst" in rec:
+                attrs = {k: v for k, v in rec.items() if k not in ("src", "dst")}
+                G.add_edge(rec["src"], rec["dst"], **attrs)
+            elif "id" in rec:
+                node_id = rec["id"]
+                attrs = {k: v for k, v in rec.items() if k != "id"}
+                G.add_node(node_id, **attrs)
     return G
 
 

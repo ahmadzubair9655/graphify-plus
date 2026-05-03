@@ -30,7 +30,7 @@ from ...runtime.store import Store, cache_path
 
 START_MARKER = "<!-- graphify-plus:start -->"
 END_MARKER = "<!-- graphify-plus:end -->"
-TEMPLATE_VERSION = 2
+TEMPLATE_VERSION = 3
 
 
 def _detect_stack(symbols) -> list[str]:
@@ -47,7 +47,7 @@ def _detect_stack(symbols) -> list[str]:
 def render_section(repo: Path) -> str:
     if not cache_path(repo).exists():
         raise click.ClickException(
-            f"No cache at {cache_path(repo)}. Run 'graphify-plus init --repo {repo}' first."
+            f"No cache at {cache_path(repo)}. Run 'gp init --repo {repo}' first."
         )
     store = Store(cache_path(repo))
     try:
@@ -75,22 +75,26 @@ def render_section(repo: Path) -> str:
         for s in stack:
             lines.append(f"- {s}")
     else:
-        lines.append("- _(empty — run `graphify-plus init --repo .` to populate)_")
+        lines.append("- _(empty — run `gp init --repo .` to populate)_")
     lines.append("")
 
     lines.extend(
         [
             "### Workflow",
             "",
-            '1. **Plan** — `graphify-plus plan --task "<description>"` writes '
+            '1. **Plan** — `gp plan --task "<description>"` writes '
             "`STAGING_PLAN.md` with the impacted symbols in topological order.",
-            "2. **Context** — `graphify-plus context --target <symbol>` returns a "
+            "2. **Context** — `gp context --target <symbol>` returns a "
             "token-budgeted slice of the symbol graph for the AI to read.",
             "3. **Guardrails** — pipe a proposed-edit JSON into "
-            "`graphify-plus guardrails` before applying changes; non-zero exit means "
+            "`gp guardrails` before applying changes; non-zero exit means "
             "a rule (`.graphify_plus/rules.yaml`) blocks the edit.",
-            "4. **Audit** — `graphify-plus audit <graph.json>` runs the structural "
-            "audit; `graphify-plus drift check` re-evaluates the live rule set.",
+            "4. **Audit** — `gp audit .graphify_plus/graph_symbols.jsonl` runs the structural "
+            "audit; `gp drift check` re-evaluates the live rule set.",
+            "",
+            "Optional enrichments (run after `gp init`): `gp enrich git` adds "
+            "volatility/age, `gp enrich lockfile` resolves third-party deps, "
+            "`gp enrich telemetry <spans.jsonl>` overlays runtime data.",
             "",
             "### MCP server",
             "",
