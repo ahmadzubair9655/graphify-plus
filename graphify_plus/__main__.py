@@ -1,15 +1,35 @@
 """
-graphify-plus CLI dispatcher.
+graphify-plus CLI dispatcher (invoke as `gp` or `graphify-plus`).
 
 Subcommands:
-  audit     — run the adversarial audit on a graphify graph.json
-  diff      — compute graph diff between two snapshots
-  enhance   — (not yet shipped — see README roadmap)
+  init           — initialize .graphify_plus/ workspace in a repo
+  watch          — incremental file-watcher reconciliation
+  session        — manage capture/replay sessions
+  skeleton       — manage skeleton CAS store
+  context        — token-budgeted context framing
+  find           — semantic symbol/file finder
+  prune          — prune stale graph entries
+  plan           — generate change plan from intent
+  sync-docs      — keep docs aligned with code
+  simulate       — simulate plan execution
+  guardrails     — evaluate guardrail rules
+  drift          — detect drift vs. baseline
+  stitch         — stitch sub-graphs into one
+  coordinate     — multi-agent coordination
+  enrich         — enrich nodes with metadata
+  blast-radius   — compute change blast radius
+  matrix         — dependency matrix output
+  visual         — visualize graph
+  claude-md      — manage CLAUDE.md files
+  mcp            — run MCP server
+  doctor         — diagnose workspace
+  explain        — explain a node/edge
+  vacuum         — compact stores
+  serve          — run REST/web server
+  audit          — adversarial audit on graph.json
+  diff           — diff two graph snapshots
 
-Examples:
-  graphify-plus audit path/to/graph.json
-  graphify-plus audit path/to/graph.json --json
-  graphify-plus diff old/graph.json new/graph.json --format markdown
+Run `gp <subcommand> --help` for command-specific options.
 """
 
 from __future__ import annotations

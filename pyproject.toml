@@ -85,6 +85,7 @@ dev = [
 
 [project.scripts]
 graphify-plus = "graphify_plus.__main__:main"
+gp = "graphify_plus.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["graphify_plus"]
