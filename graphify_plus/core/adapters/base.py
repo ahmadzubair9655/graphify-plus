@@ -51,11 +51,11 @@ class Symbol(TypedDict, total=False):
 
 # Confidence defaults per edge source. Consumed by 11.7 (audit probes),
 # 11.8 (telemetry buckets), 11.10 (gp explain), 12.4 (feedback loop).
-CONF_EXACT: float = 1.0       # Tree-sitter structural (contains/defines)
-CONF_RESOLVED: float = 0.7    # import / extends with target found
-CONF_STITCH: float = 0.5      # cross-language stitch
-CONF_INFERRED: float = 0.4    # telemetry / community-inferred / lockfile
-CONF_FALLBACK: float = 0.2    # unresolved heuristic
+CONF_EXACT: float = 1.0  # Tree-sitter structural (contains/defines)
+CONF_RESOLVED: float = 0.7  # import / extends with target found
+CONF_STITCH: float = 0.5  # cross-language stitch
+CONF_INFERRED: float = 0.4  # telemetry / community-inferred / lockfile
+CONF_FALLBACK: float = 0.2  # unresolved heuristic
 
 
 class Edge(TypedDict, total=False):

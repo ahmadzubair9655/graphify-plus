@@ -1,0 +1,178 @@
+{
+  "csharp": {
+    "01_class.cs": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "02_interface.cs": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "03_inheritance.cs": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "04_generic.cs": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "05_record.cs": {
+      "edges": 2,
+      "symbols": 3
+    }
+  },
+  "go": {
+    "01_struct.go": {
+      "edges": 1,
+      "symbols": 2
+    },
+    "02_interface.go": {
+      "edges": 2,
+      "symbols": 2
+    },
+    "03_generic.go": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "04_channels.go": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "05_errors.go": {
+      "edges": 2,
+      "symbols": 2
+    }
+  },
+  "java": {
+    "01_class.java": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "02_interface.java": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "03_inheritance.java": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "04_generic.java": {
+      "edges": 5,
+      "symbols": 4
+    },
+    "05_enum.java": {
+      "edges": 2,
+      "symbols": 3
+    }
+  },
+  "javascript": {
+    "01_function.js": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "02_class.js": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "03_inheritance.js": {
+      "edges": 3,
+      "symbols": 3
+    },
+    "04_async.js": {
+      "edges": 1,
+      "symbols": 2
+    },
+    "05_jsx.jsx": {
+      "edges": 2,
+      "symbols": 2
+    }
+  },
+  "python": {
+    "01_simple_class.py": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "02_inheritance.py": {
+      "edges": 10,
+      "symbols": 6
+    },
+    "03_decorators.py": {
+      "edges": 7,
+      "symbols": 3
+    },
+    "04_async.py": {
+      "edges": 5,
+      "symbols": 3
+    },
+    "05_dataclass.py": {
+      "edges": 3,
+      "symbols": 3
+    }
+  },
+  "ruby": {
+    "01_class.rb": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "02_module.rb": {
+      "edges": 4,
+      "symbols": 5
+    },
+    "03_inheritance.rb": {
+      "edges": 4,
+      "symbols": 5
+    },
+    "04_blocks.rb": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "05_singleton.rb": {
+      "edges": 2,
+      "symbols": 3
+    }
+  },
+  "rust": {
+    "01_struct.rs": {
+      "edges": 4,
+      "symbols": 5
+    },
+    "02_trait.rs": {
+      "edges": 4,
+      "symbols": 5
+    },
+    "03_enum.rs": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "04_generic.rs": {
+      "edges": 2,
+      "symbols": 3
+    },
+    "05_module.rs": {
+      "edges": 2,
+      "symbols": 2
+    }
+  },
+  "typescript": {
+    "01_class.ts": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "02_interface.ts": {
+      "edges": 3,
+      "symbols": 4
+    },
+    "03_generic.ts": {
+      "edges": 4,
+      "symbols": 4
+    },
+    "04_async.ts": {
+      "edges": 1,
+      "symbols": 2
+    },
+    "05_decorator.ts": {
+      "edges": 3,
+      "symbols": 4
+    }
+  }
+}

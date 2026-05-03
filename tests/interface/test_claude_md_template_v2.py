@@ -6,7 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 CONFIDENCE_PARAGRAPH = (
     "When confidence < 0.7 on any edge in your context output, verify by "
     "reading the source file directly before relying on it. Low-confidence "

@@ -9,9 +9,9 @@ from graphify_plus.core.adapters.base import (
     CONF_FALLBACK,
     CONF_RESOLVED,
 )
+from graphify_plus.core.adapters.go_adapter import GoAdapter
 from graphify_plus.core.adapters.python_adapter import PythonAdapter
 from graphify_plus.core.adapters.typescript_adapter import TypeScriptAdapter
-from graphify_plus.core.adapters.go_adapter import GoAdapter
 
 
 def _confidences_by_kind(edges):

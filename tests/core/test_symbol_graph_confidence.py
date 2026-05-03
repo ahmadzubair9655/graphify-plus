@@ -23,7 +23,9 @@ def test_build_propagates_confidence_to_edge_attrs():
     sym_b: Symbol = {**sym_a, "id": "b", "qualified_name": "b", "name": "b"}
     edges: list[Edge] = [
         Edge(src="a", dst="b", kind="contains", resolved=True, span=None, confidence=CONF_EXACT),
-        Edge(src="a", dst="ext", kind="imports", resolved=False, span=None, confidence=CONF_FALLBACK),
+        Edge(
+            src="a", dst="ext", kind="imports", resolved=False, span=None, confidence=CONF_FALLBACK
+        ),
     ]
     g = build([sym_a, sym_b], edges)
     confidences = sorted(d["confidence"] for _u, _v, _k, d in g.edges(data=True, keys=True))
