@@ -108,6 +108,22 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd in ("simulate", "guardrails", "drift"):
+        from graphify_plus.interface.cli.safety_cmds import (
+            drift_cmd, guardrails_cmd, simulate_cmd,
+        )
+        click_cmd = {"simulate": simulate_cmd, "guardrails": guardrails_cmd,
+                     "drift": drift_cmd}[cmd]
+        try:
+            click_cmd.main(args=rest, prog_name=f"graphify-plus {cmd}",
+                           standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd == "plan":
         from graphify_plus.interface.cli.plan_cmd import plan_cmd
         try:
