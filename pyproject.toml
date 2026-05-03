@@ -36,6 +36,7 @@ dependencies = [
     "GitPython>=3.1",
     "tiktoken>=0.7",  # Phase 3 token-budgeted framing
     "rank-bm25>=0.2",  # Phase 4 semantic finder (pure-python, no tokenizer deps)
+    "PyYAML>=6.0",  # Phase 6 rules.yaml loading
 ]
 
 [project.optional-dependencies]
