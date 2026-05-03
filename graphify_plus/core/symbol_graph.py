@@ -11,6 +11,7 @@ from __future__ import annotations
 import networkx as nx
 
 from .adapters import Edge, Symbol
+from .adapters.base import CONF_FALLBACK
 
 
 def build(symbols: list[Symbol], edges: list[Edge]) -> nx.MultiDiGraph:
@@ -49,6 +50,7 @@ def build(symbols: list[Symbol], edges: list[Edge]) -> nx.MultiDiGraph:
             kind=e.get("kind"),
             resolved=bool(e.get("resolved")),
             span=e.get("span"),
+            confidence=float(e.get("confidence", CONF_FALLBACK)),
         )
     return G
 

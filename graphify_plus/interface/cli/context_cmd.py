@@ -82,6 +82,13 @@ def _resolve_target(store: Store, target: str) -> str:
     is_flag=True,
     help="Implies --apply-prune; also excludes deprecated symbols.",
 )
+@click.option(
+    "--min-confidence",
+    "min_confidence",
+    type=float,
+    default=0.0,
+    help="Drop edges with confidence < this threshold (0.0 = keep all).",
+)
 def context_cmd(
     repo: Path,
     entry: str | None,
@@ -90,6 +97,7 @@ def context_cmd(
     json_manifest: bool,
     apply_prune: bool,
     aggressive_prune: bool,
+    min_confidence: float,
 ) -> None:
     """Print a token-budgeted slice of the symbol graph."""
     repo = repo.resolve()
@@ -103,6 +111,8 @@ def context_cmd(
         entry_id = _resolve_entry(store, entry, target_id)
         symbols = store.all_symbols()
         edges = store.all_edges()
+        if min_confidence > 0.0:
+            edges = [e for e in edges if float(e.get("confidence", 0.2)) >= min_confidence]
         G = build_graph(symbols, edges)
         try:
             partition = compute_partition(G, entry_id, target_id)

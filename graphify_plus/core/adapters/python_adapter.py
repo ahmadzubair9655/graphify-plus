@@ -178,7 +178,14 @@ class PythonAdapter:
                 )
                 if parent_id is not None:
                     edges.append(
-                        Edge(src=parent_id, dst=cid, kind="contains", resolved=True, span=None)
+                        Edge(
+                            src=parent_id,
+                            dst=cid,
+                            kind="contains",
+                            resolved=True,
+                            span=None,
+                            confidence=CONF_EXACT,
+                        )
                     )
                 for base in base_strs:
                     edges.append(
