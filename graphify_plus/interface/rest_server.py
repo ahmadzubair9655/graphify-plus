@@ -110,7 +110,13 @@ def build_app(repo: Path, *, no_auth: bool = False) -> Any:
         task = body.get("task")
         if not task:
             raise HTTPException(status_code=400, detail="missing 'task'")
-        return JSONResponse(_run_plan(Path(body.get("repo") or repo), str(task)))
+        return JSONResponse(
+            _run_plan(
+                Path(body.get("repo") or repo),
+                str(task),
+                force=bool(body.get("force") or False),
+            )
+        )
 
     @app.post("/v1/find")
     async def find(req: Request, _auth: None = Depends(_check_auth)) -> JSONResponse:
@@ -204,8 +210,23 @@ def _run_context(repo: Path, target: str, *, max_tokens: int, min_confidence: fl
         store.close()
 
 
-def _run_plan(repo: Path, task: str) -> dict:
-    return {"repo": str(repo), "task": task, "note": "see gp plan CLI for full output"}
+def _run_plan(repo: Path, task: str, *, force: bool = False) -> dict:
+    from ..query.sync_docs import regenerate
+    from ..runtime.store import cache_path
+
+    if not cache_path(repo).exists():
+        return {"error": f"no cache at {cache_path(repo)}"}
+    plan_path = regenerate(repo, task, force=force)
+    try:
+        body = plan_path.read_text(errors="replace")
+    except OSError as exc:
+        return {"error": f"could not read plan: {exc}"}
+    return {
+        "repo": str(repo),
+        "task": task,
+        "plan_path": str(plan_path),
+        "plan": body,
+    }
 
 
 def _run_find(repo: Path, query: str, *, k: int) -> dict:
@@ -231,7 +252,78 @@ def _run_find(repo: Path, query: str, *, k: int) -> dict:
 
 
 def _run_simulate(repo: Path, edits: list) -> dict:
-    return {"repo": str(repo), "edits": edits, "note": "see gp simulate CLI"}
+    """``edits`` is a list of dicts: {op: add_edge|remove_edge|add_node|rm_node, ...}.
+
+    add_edge/remove_edge: {op, src, dst, kind?}
+    add_node:             {op, id}
+    rm_node:              {op, id}
+    """
+    from ..core.symbol_graph import build as build_graph
+    from ..query.shadow import simulate as shadow_simulate
+    from ..runtime.overlay import empty as empty_overlay
+    from ..runtime.rules import RuleSet
+    from ..runtime.store import Store, cache_path
+
+    if not cache_path(repo).exists():
+        return {"error": f"no cache at {cache_path(repo)}"}
+    store = Store(cache_path(repo))
+    try:
+        G = build_graph(store.all_symbols(), store.all_edges())
+        overlay = empty_overlay(G)
+        for e in edits:
+            op = e.get("op")
+            if op == "add_node":
+                nid = str(e.get("id") or "")
+                if nid:
+                    overlay.add_node(nid, kind="stub", path="", name=nid)
+            elif op == "rm_node":
+                nid = str(e.get("id") or "")
+                if nid:
+                    overlay.remove_node(nid)
+            elif op == "add_edge":
+                src = str(e.get("src") or "")
+                dst = str(e.get("dst") or "")
+                kind = str(e.get("kind") or "calls")
+                if src and dst:
+                    if not G.has_node(dst):
+                        overlay.add_node(dst, kind="stub", path="", name=dst)
+                    overlay.add_edge(src, dst, kind=kind)
+            elif op == "remove_edge":
+                src = str(e.get("src") or "")
+                dst = str(e.get("dst") or "")
+                kind = e.get("kind")
+                if src and dst:
+                    overlay.remove_edge(src, dst, kind=kind or None)
+        rules_path = repo / ".graphify_plus" / "rules.yaml"
+        if rules_path.exists():
+            try:
+                import yaml  # type: ignore[import-untyped]
+
+                ruleset = RuleSet.from_dict(yaml.safe_load(rules_path.read_text()) or {})
+            except ImportError:
+                import json as _json
+
+                ruleset = RuleSet.from_dict(_json.loads(rules_path.read_text()))
+        else:
+            ruleset = RuleSet()
+        result = shadow_simulate(overlay, ruleset)
+    finally:
+        store.close()
+    return {
+        "grade": result.grade,
+        "summary": result.summary,
+        "violations": [
+            {
+                "rule_id": v.rule_id,
+                "severity": v.severity,
+                "src": v.src,
+                "dst": v.dst,
+                "kind": v.kind,
+                "message": v.message,
+            }
+            for v in result.violations
+        ],
+    }
 
 
 def _run_skeleton(repo: Path, target: str) -> dict:

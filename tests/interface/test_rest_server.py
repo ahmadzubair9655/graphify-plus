@@ -111,6 +111,38 @@ def test_find_endpoint(authed):
     assert "matches" in r.json()
 
 
+def test_plan_endpoint_returns_real_plan(authed):
+    client, token, _r = authed
+    r = client.post(
+        "/v1/plan",
+        json={"task": "add a logger"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("plan_path", "").endswith("STAGING_PLAN.md")
+    assert body.get("plan"), "plan body should be non-empty"
+
+
+def test_simulate_endpoint_returns_real_grade(authed):
+    client, token, _r = authed
+    r = client.post(
+        "/v1/simulate",
+        json={
+            "edits": [
+                {"op": "add_node", "id": "stub_x"},
+                {"op": "add_edge", "src": "stub_x", "dst": "stub_y", "kind": "calls"},
+            ]
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert "grade" in body
+    assert "violations" in body
+    assert "summary" in body
+
+
 def test_no_auth_mode_skips_check(tmp_path):
     repo = _init_repo(tmp_path)
     app = build_app(repo, no_auth=True)
