@@ -28,6 +28,7 @@ BUDGETS = {  # seconds, on the small fixture
     "graph_load": 0.5,
     "symbol_lookup": 0.01,
     "skeleton_lookup": 0.005,  # Phase 1: ≤5ms p95 per spec
+    "context_query": 0.12,  # Phase 3: ≤120ms p95 per spec (10k-node budget)
 }
 
 
@@ -77,11 +78,29 @@ def run_benches() -> dict[str, float]:
         s.get_skeleton_for_symbol(sample_id)
         s.close()
 
+    def _context():
+        from graphify_plus.core.symbol_graph import build as build_graph
+        from graphify_plus.query.budget import frame_to_budget
+        from graphify_plus.query.partition import compute_partition
+
+        s = Store(cache_path(FIXTURE))
+        try:
+            symbols = s.all_symbols()
+            edges = s.all_edges()
+            G = build_graph(symbols, edges)
+            target = next(x for x in symbols if x["qualified_name"] == "invoice.Invoice.total")
+            entry = next(x for x in symbols if x["qualified_name"] == "invoice")
+            partition = compute_partition(G, entry["id"], target["id"])
+            frame_to_budget(partition, s, max_tokens=2000)
+        finally:
+            s.close()
+
     return {
         "ingest": _time(_ingest, repeat=2),
         "graph_load": _time(_load, repeat=5),
         "symbol_lookup": _time(_lookup, repeat=20),
         "skeleton_lookup": _time(_skeleton_lookup, repeat=20),
+        "context_query": _time(_context, repeat=5),
     }
 
 

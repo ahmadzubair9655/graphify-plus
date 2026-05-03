@@ -108,6 +108,18 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd == "context":
+        from graphify_plus.interface.cli.context_cmd import context_cmd
+        try:
+            context_cmd.main(args=rest, prog_name="graphify-plus context",
+                             standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd == "watch":
         from graphify_plus.interface.cli.watch_cmd import watch_cmd
         try:
