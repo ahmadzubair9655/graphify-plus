@@ -18,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 
+import click
+
 
 def _load_graph(path: Path):
     """Load a graphify graph.json into a networkx.Graph."""
@@ -104,6 +106,18 @@ def main(argv: list[str] | None = None) -> int:
                           standalone_mode=False)
         except SystemExit as e:
             return int(e.code or 0)
+        return 0
+
+    if cmd == "skeleton":
+        from graphify_plus.interface.cli.skeleton_cmd import skeleton_cmd
+        try:
+            skeleton_cmd.main(args=rest, prog_name="graphify-plus skeleton",
+                              standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
         return 0
 
     if cmd == "enhance":
