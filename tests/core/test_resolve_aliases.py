@@ -53,17 +53,17 @@ def test_strip_jsonc_preserves_glob_patterns_inside_strings():
     must NOT treat them as comments.
     """
     text = (
-        '{\n'
+        "{\n"
         '  "include": [\n'
         '    "**/*.ts",\n'
         '    "**/*.tsx",\n'
         '    ".next/types/**/*.ts"\n'
-        '  ],\n'
+        "  ],\n"
         '  "compilerOptions": {\n'
-        '    // a real comment\n'
+        "    // a real comment\n"
         '    "paths": {"@/*": ["./src/*"]}\n'
-        '  }\n'
-        '}\n'
+        "  }\n"
+        "}\n"
     )
     import json
 
