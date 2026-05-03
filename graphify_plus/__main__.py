@@ -116,6 +116,25 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd == "claude-md":
+        from graphify_plus.interface.cli.claude_md_cmd import claude_md_cmd
+
+        try:
+            claude_md_cmd.main(
+                args=rest, prog_name="graphify-plus claude-md", standalone_mode=False
+            )
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
+    if cmd == "mcp":
+        from graphify_plus.interface.mcp_server import main as mcp_main
+
+        return mcp_main()
+
     if cmd in ("matrix", "visual"):
         from graphify_plus.interface.cli.matrix_cmd import (
             matrix_cmd,
