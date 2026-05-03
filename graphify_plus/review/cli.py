@@ -19,9 +19,9 @@ from pathlib import Path
 
 from graphify_plus.review.graph_diff import (
     diff_graphs,
+    diff_meets_threshold,
     format_pr_comment,
     format_text_diff,
-    diff_meets_threshold,
 )
 
 SEVERITY_LEVELS = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]

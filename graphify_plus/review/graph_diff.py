@@ -27,9 +27,9 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Any, Optional, Union
-import networkx as nx
+from typing import Any
 
+import networkx as nx
 
 SeverityStr = str  # "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "INFO"
 
@@ -86,7 +86,7 @@ def _load_graph(path: Path) -> nx.Graph:
     return G
 
 
-def _normalise(arg: Union[nx.Graph, Path, str]) -> nx.Graph:
+def _normalise(arg: nx.Graph | Path | str) -> nx.Graph:
     """Accept either a graph or a path; always return a graph."""
     if isinstance(arg, nx.Graph):
         return arg
@@ -161,10 +161,10 @@ def _aggregate_severity(items: list[SeverityStr]) -> SeverityStr:
 # ---------------------------------------------------------------------------
 
 def diff_graphs(
-    old: Union[nx.Graph, Path, str],
-    new: Union[nx.Graph, Path, str],
-    old_report: Optional[Union[dict, Path, str]] = None,
-    new_report: Optional[Union[dict, Path, str]] = None,
+    old: nx.Graph | Path | str,
+    new: nx.Graph | Path | str,
+    old_report: dict | Path | str | None = None,
+    new_report: dict | Path | str | None = None,
 ) -> dict:
     """
     Compute a structural diff between two graphs.
@@ -376,11 +376,11 @@ def _detect_community_changes(G_old: nx.Graph, G_new: nx.Graph) -> dict:
 
 
 def _compute_health_delta(
-    old_report: Optional[Union[dict, Path, str]],
-    new_report: Optional[Union[dict, Path, str]],
-) -> Optional[dict]:
+    old_report: dict | Path | str | None,
+    new_report: dict | Path | str | None,
+) -> dict | None:
     """Extract health-score delta from two report.json files/dicts."""
-    def _load(report: Optional[Union[dict, Path, str]]) -> Optional[dict]:
+    def _load(report: dict | Path | str | None) -> dict | None:
         if report is None:
             return None
         if isinstance(report, dict):

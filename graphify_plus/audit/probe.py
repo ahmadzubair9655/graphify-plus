@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Any, Optional
-import networkx as nx
+from typing import Any
 
+import networkx as nx
 
 GradeStr = str  # "A" | "B" | "C" | "D" | "F" | "N/A"
 
@@ -582,7 +582,7 @@ def run_audit(
     deletion_rate: float = 0.05,
     seed: int = _DEFAULT_SAMPLE_SEED,
     skip_expensive: bool = False,
-    only: Optional[list[str]] = None,
+    only: list[str] | None = None,
 ) -> dict:
     ok, reason = _validate_graph(G)
     if not ok:
