@@ -58,9 +58,9 @@ def _run_audit(rest: list[str]) -> int:
         return 2
 
     from graphify_plus.audit.probe import (
-        run_audit,
-        format_audit_report,
         audit_meets_threshold,
+        format_audit_report,
+        run_audit,
     )
 
     G = _load_graph(graph_path)
@@ -108,9 +108,27 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd in ("stitch", "coordinate"):
+        from graphify_plus.interface.cli.coordinate_cmd import (
+            coordinate_cmd,
+            stitch_cmd,
+        )
+        click_cmd_map = {"stitch": stitch_cmd, "coordinate": coordinate_cmd}
+        try:
+            click_cmd_map[cmd].main(args=rest, prog_name=f"graphify-plus {cmd}",
+                                     standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd in ("simulate", "guardrails", "drift"):
         from graphify_plus.interface.cli.safety_cmds import (
-            drift_cmd, guardrails_cmd, simulate_cmd,
+            drift_cmd,
+            guardrails_cmd,
+            simulate_cmd,
         )
         click_cmd = {"simulate": simulate_cmd, "guardrails": guardrails_cmd,
                      "drift": drift_cmd}[cmd]

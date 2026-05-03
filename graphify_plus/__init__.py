@@ -21,22 +21,22 @@ __version__ = "3.1.1"
 
 # Re-export the headline functions so callers can do `from graphify_plus import …`
 from graphify_plus.audit.probe import (  # noqa: E402,F401
-    run_audit,
-    format_audit_report,
     audit_meets_threshold,
-    probe_edge_deletion_stability,
+    format_audit_report,
+    probe_centrality_drift,
     probe_confidence_drift,
-    probe_rename_sensitivity,
-    probe_structural_fragility,
+    probe_edge_deletion_stability,
     probe_lonely_inferred_edges,
     probe_modularity_quality,
-    probe_centrality_drift,
+    probe_rename_sensitivity,
+    probe_structural_fragility,
+    run_audit,
 )
 from graphify_plus.review.graph_diff import (  # noqa: E402,F401
     diff_graphs,
+    diff_meets_threshold,
     format_pr_comment,
     format_text_diff,
-    diff_meets_threshold,
 )
 
 __all__ = [
