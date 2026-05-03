@@ -32,14 +32,14 @@ from pathlib import Path
 
 import orjson
 
-log = logging.getLogger("graphify_plus.runtime.store")
-
 from ..core.adapters import Edge, Symbol
 from ..interface.errors import (
     CacheCorrupt,
     CacheLocked,
     CacheVersionMismatch,
 )
+
+log = logging.getLogger("graphify_plus.runtime.store")
 
 SCHEMA_VERSION = 1
 RETRY_DELAYS_S = (0.1, 0.2, 0.4, 0.8, 1.6)  # 5 attempts before GP-CACHE-LOCKED
