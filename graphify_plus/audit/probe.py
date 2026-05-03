@@ -563,19 +563,151 @@ def probe_centrality_drift(G: nx.Graph, top_k: int = 10) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Probe 8 (11.7): unresolved imports
+# ---------------------------------------------------------------------------
+
+
+def probe_unresolved_imports(G: nx.Graph) -> dict:
+    """Count `imports` edges flagged ``resolved=False``.
+
+    A high ratio means many imports could not be matched to a definition
+    (heuristic-only edges) — the graph's import surface is brittle.
+    """
+    ok, reason = _validate_graph(G)
+    if not ok:
+        return {"skipped": True, "reason": reason}
+    total = 0
+    unresolved = 0
+    for _u, _v, data in G.edges(data=True):
+        if data.get("kind") != "imports":
+            continue
+        total += 1
+        if not data.get("resolved"):
+            unresolved += 1
+    if total == 0:
+        return {
+            "skipped": False,
+            "total_imports": 0,
+            "unresolved_count": 0,
+            "unresolved_pct": 0.0,
+            "unresolved_imports_grade": "N/A",
+            "interpretation": "no imports edges in graph",
+        }
+    ratio = unresolved / total
+    grade = _grade_from_numeric(1.0 - ratio, thresholds=(0.9, 0.75, 0.5, 0.3))
+    return {
+        "skipped": False,
+        "total_imports": total,
+        "unresolved_count": unresolved,
+        "unresolved_pct": round(ratio * 100, 2),
+        "unresolved_imports_grade": grade,
+        "interpretation": (
+            f"{unresolved} of {total} imports edges are unresolved heuristics."
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Probe 9 (11.7): phantom symbols
+# ---------------------------------------------------------------------------
+
+
+def probe_phantom_symbols(G: nx.Graph) -> dict:
+    """Symbols with degree 0 — defined but never referenced."""
+    ok, reason = _validate_graph(G)
+    if not ok:
+        return {"skipped": True, "reason": reason}
+    total = 0
+    phantoms: list[str] = []
+    for nid, attrs in G.nodes(data=True):
+        if attrs.get("kind") in {None, "external"}:
+            continue
+        total += 1
+        if G.degree(nid) == 0:
+            phantoms.append(_safe_node_label(G, nid))
+    if total == 0:
+        return {
+            "skipped": False,
+            "total_symbols": 0,
+            "phantom_count": 0,
+            "phantom_pct": 0.0,
+            "phantom_grade": "N/A",
+            "interpretation": "no scoreable symbols in graph",
+        }
+    ratio = len(phantoms) / total
+    grade = _grade_from_numeric(1.0 - ratio, thresholds=(0.95, 0.85, 0.7, 0.5))
+    return {
+        "skipped": False,
+        "total_symbols": total,
+        "phantom_count": len(phantoms),
+        "phantom_pct": round(ratio * 100, 2),
+        "phantom_examples": phantoms[:10],
+        "phantom_grade": grade,
+        "interpretation": (
+            f"{len(phantoms)} of {total} symbols have no edges — likely dead or mis-extracted."
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Probe 10 (11.7): low-confidence edge ratio
+# ---------------------------------------------------------------------------
+
+
+def probe_low_confidence_ratio(G: nx.Graph, threshold: float = 0.7) -> dict:
+    """Fraction of edges below the confidence cutoff."""
+    ok, reason = _validate_graph(G)
+    if not ok:
+        return {"skipped": True, "reason": reason}
+    total = 0
+    low = 0
+    for _u, _v, data in G.edges(data=True):
+        c = data.get("confidence")
+        if not isinstance(c, (int, float)):
+            continue
+        total += 1
+        if c < threshold:
+            low += 1
+    if total == 0:
+        return {
+            "skipped": False,
+            "total_edges_with_confidence": 0,
+            "low_confidence_count": 0,
+            "low_confidence_pct": 0.0,
+            "low_confidence_grade": "N/A",
+            "interpretation": "no edges carry confidence values",
+        }
+    ratio = low / total
+    grade = _grade_from_numeric(1.0 - ratio, thresholds=(0.85, 0.7, 0.5, 0.3))
+    return {
+        "skipped": False,
+        "total_edges_with_confidence": total,
+        "low_confidence_count": low,
+        "low_confidence_pct": round(ratio * 100, 2),
+        "low_confidence_grade": grade,
+        "interpretation": (
+            f"{low} of {total} edges have confidence < {threshold}."
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Audit aggregation
 # ---------------------------------------------------------------------------
 
 
 def _aggregate_grade(probe_results: dict[str, dict]) -> dict:
     grade_keys = [
-        ("edge_deletion_stability", "stability_grade", 0.20),
-        ("confidence_drift", "drift_grade", 0.15),
-        ("rename_sensitivity", "rename_grade", 0.10),
-        ("structural_fragility", "structural_grade", 0.20),
-        ("lonely_inferred_edges", "lonely_grade", 0.15),
-        ("modularity_quality", "modularity_grade", 0.10),
-        ("centrality_drift", "centrality_grade", 0.10),
+        ("edge_deletion_stability", "stability_grade", 0.15),
+        ("confidence_drift", "drift_grade", 0.10),
+        ("rename_sensitivity", "rename_grade", 0.08),
+        ("structural_fragility", "structural_grade", 0.15),
+        ("lonely_inferred_edges", "lonely_grade", 0.10),
+        ("modularity_quality", "modularity_grade", 0.07),
+        ("centrality_drift", "centrality_grade", 0.05),
+        ("unresolved_imports", "unresolved_imports_grade", 0.10),
+        ("phantom_symbols", "phantom_grade", 0.10),
+        ("low_confidence_ratio", "low_confidence_grade", 0.10),
     ]
 
     weighted_sum = 0.0
@@ -648,6 +780,9 @@ def run_audit(
         "lonely_inferred_edges": lambda: probe_lonely_inferred_edges(G),
         "modularity_quality": lambda: probe_modularity_quality(G),
         "centrality_drift": lambda: probe_centrality_drift(G),
+        "unresolved_imports": lambda: probe_unresolved_imports(G),
+        "phantom_symbols": lambda: probe_phantom_symbols(G),
+        "low_confidence_ratio": lambda: probe_low_confidence_ratio(G),
     }
 
     if only:
@@ -667,14 +802,20 @@ def run_audit(
 
     aggregate = _aggregate_grade(results)
 
+    weighted = aggregate["weighted_score"]
+    # weighted_score is on a 0..4 (F..A) scale — normalise to 0..100.
+    trust_score = (
+        int(round(float(weighted) / 4.0 * 100)) if isinstance(weighted, (int, float)) else None
+    )
     return {
-        "_schema": "graphify-plus-audit-1.1",
+        "_schema": "graphify-plus-audit-1.2",
         "graph_size": {
             "nodes": G.number_of_nodes(),
             "edges": G.number_of_edges(),
             "directed": G.is_directed(),
             "multigraph": G.is_multigraph(),
         },
+        "trust_score": trust_score,
         "overall_grade": aggregate["overall_grade"],
         "weighted_score": aggregate["weighted_score"],
         "component_grades": aggregate["components"],
@@ -693,6 +834,10 @@ def format_audit_report(audit: dict) -> str:
         return f"# Audit\n\nSkipped: {audit.get('reason', 'unknown')}\n"
 
     lines = ["# Adversarial Audit Report\n"]
+    trust = audit.get("trust_score")
+    if isinstance(trust, int):
+        warn = " — verify findings before relying on the graph" if trust < 70 else ""
+        lines.append(f"## Trust score: **{trust} / 100**{warn}\n")
     s = audit.get("graph_size", {})
     direction = "directed" if s.get("directed") else "undirected"
     lines.append(
@@ -718,6 +863,9 @@ def format_audit_report(audit: dict) -> str:
         ("lonely_inferred_edges", "5. Lonely INFERRED edges", "lonely_grade"),
         ("modularity_quality", "6. Modularity quality", "modularity_grade"),
         ("centrality_drift", "7. Centrality drift", "centrality_grade"),
+        ("unresolved_imports", "8. Unresolved imports", "unresolved_imports_grade"),
+        ("phantom_symbols", "9. Phantom symbols", "phantom_grade"),
+        ("low_confidence_ratio", "10. Low-confidence edges", "low_confidence_grade"),
     ]
 
     for key, title, grade_field in sections:
