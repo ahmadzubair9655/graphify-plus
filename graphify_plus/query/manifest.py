@@ -19,13 +19,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-UTC = timezone.utc
-
 import networkx as nx
 
 from ..core.adapters import Symbol
 from ..query.semantic import find as semantic_find
 from ..runtime.store import Store
+
+UTC = timezone.utc
 
 # ---------- data --------------------------------------------------------
 
