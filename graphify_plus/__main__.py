@@ -116,6 +116,24 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd in ("matrix", "visual"):
+        from graphify_plus.interface.cli.matrix_cmd import (
+            matrix_cmd,
+            visual_cmd,
+        )
+
+        click_cmd_map = {"matrix": matrix_cmd, "visual": visual_cmd}
+        try:
+            click_cmd_map[cmd].main(
+                args=rest, prog_name=f"graphify-plus {cmd}", standalone_mode=False
+            )
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd in ("enrich", "blast-radius"):
         from graphify_plus.interface.cli.enrich_cmd import (
             blast_cmd,
