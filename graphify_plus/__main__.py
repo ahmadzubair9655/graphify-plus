@@ -108,6 +108,30 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd == "find":
+        from graphify_plus.interface.cli.find_cmd import find_cmd
+        try:
+            find_cmd.main(args=rest, prog_name="graphify-plus find",
+                          standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
+    if cmd == "prune":
+        from graphify_plus.interface.cli.prune_cmd import prune_cmd
+        try:
+            prune_cmd.main(args=rest, prog_name="graphify-plus prune",
+                           standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd == "context":
         from graphify_plus.interface.cli.context_cmd import context_cmd
         try:

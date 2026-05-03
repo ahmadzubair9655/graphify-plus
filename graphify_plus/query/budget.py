@@ -93,7 +93,11 @@ def _skeleton_for(store: Store, sid: str) -> tuple[str | None, str | None]:
 
 
 def frame_to_budget(
-    partition: Partition, store: Store, *, max_tokens: int = 4000
+    partition: Partition,
+    store: Store,
+    *,
+    max_tokens: int = 4000,
+    exclude: set[str] | None = None,
 ) -> BudgetedContext:
     """Pack ``partition`` into ``max_tokens`` of skeleton text.
 
@@ -106,15 +110,19 @@ def frame_to_budget(
     truncated_count = 0
     cut_count = 0
 
+    excl = exclude or set()
     # 1) Resolve symbols + skeletons in priority order.
     seen: set[str] = set()
     ordered_ids: list[tuple[str, str]] = []  # (sid, role)
 
     for sid in partition.gatekeepers:
-        if sid not in seen:
-            seen.add(sid)
-            ordered_ids.append((sid, "gatekeeper"))
+        if sid in excl or sid in seen:
+            continue
+        seen.add(sid)
+        ordered_ids.append((sid, "gatekeeper"))
     for sid in partition.path:
+        # Path nodes are NEVER excluded — the path is the contract with
+        # the caller. Pruning trims neighbours/extras only.
         if sid not in seen:
             seen.add(sid)
             ordered_ids.append((sid, "path"))
@@ -122,7 +130,7 @@ def frame_to_budget(
     # Sort neighbours by importance, then id for stability.
     neigh_ranked: list[tuple[Symbol, str]] = []
     for sid in partition.neighbours:
-        if sid in seen:
+        if sid in seen or sid in excl:
             continue
         node = partition.induced.nodes.get(sid)
         if node is None:
