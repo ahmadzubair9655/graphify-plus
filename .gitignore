@@ -4,3 +4,10 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.graphify_plus/
+.graphify_plus_bench/
