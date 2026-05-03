@@ -88,8 +88,35 @@ def apply_to_graph(G, repo: Path) -> int:
     return adjusted
 
 
+DRIFT_PROBES: tuple[tuple[str, str], ...] = (
+    ("unresolved_imports", "unresolved_imports_grade"),
+    ("phantom_symbols", "phantom_grade"),
+    ("low_confidence_ratio", "low_confidence_grade"),
+)
+
+
+def record_from_audit(audit: dict, repo: Path) -> int:
+    """Per the v4.4.0 wiring policy: when any of the three drift-signal
+    probes returns grade D or F, append a drift event for every
+    contributing edge. Returns the number of events appended.
+    """
+    events = 0
+    for probe_key, grade_field in DRIFT_PROBES:
+        result = audit.get(probe_key, {})
+        if result.get("skipped"):
+            continue
+        grade = result.get(grade_field)
+        if grade not in {"D", "F"}:
+            continue
+        for src, dst, kind in result.get("contributing_edges", []):
+            record_drift(repo, edge_key(src, dst, kind), reason=f"{probe_key}:{grade}")
+            events += 1
+    return events
+
+
 __all__ = [
     "DECREMENT",
+    "DRIFT_PROBES",
     "FAILURE_THRESHOLD",
     "FLOOR",
     "LOG_NAME",
@@ -97,4 +124,5 @@ __all__ = [
     "apply_to_graph",
     "edge_key",
     "record_drift",
+    "record_from_audit",
 ]

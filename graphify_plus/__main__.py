@@ -294,6 +294,18 @@ def _dispatch(cmd: str, rest: list[str]) -> int:
             return 1
         return 0
 
+    if cmd == "vacuum":
+        from graphify_plus.interface.cli.vacuum_cmd import vacuum_cmd
+
+        try:
+            vacuum_cmd.main(args=rest, prog_name="graphify-plus vacuum", standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd == "explain":
         from graphify_plus.interface.cli.explain_cmd import explain_cmd
 
