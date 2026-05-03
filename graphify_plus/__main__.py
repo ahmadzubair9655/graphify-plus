@@ -108,6 +108,30 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd == "plan":
+        from graphify_plus.interface.cli.plan_cmd import plan_cmd
+        try:
+            plan_cmd.main(args=rest, prog_name="graphify-plus plan",
+                          standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
+    if cmd == "sync-docs":
+        from graphify_plus.interface.cli.sync_docs_cmd import sync_docs_cmd
+        try:
+            sync_docs_cmd.main(args=rest, prog_name="graphify-plus sync-docs",
+                               standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd == "find":
         from graphify_plus.interface.cli.find_cmd import find_cmd
         try:
