@@ -304,6 +304,18 @@ def ingest(
     if write_skipped:
         _write_skipped(root, skipped)
 
+    # Bug 5 (v5.0.3): post-pass that resolves TS/JS `@/` path aliases
+    # against tsconfig.json / jsconfig.json. Mutates edges_all in place;
+    # bumps confidence to CONF_RESOLVED on each successful resolution so
+    # the unresolved-imports probe and the layer-rule engine actually
+    # see them.
+    try:
+        from .resolve_aliases import resolve_alias_imports
+
+        resolve_alias_imports(root, syms_all, edges_all)
+    except Exception:  # noqa: BLE001 — never let alias resolution fail ingest
+        pass
+
     syms_all.sort(key=lambda s: (s["path"], s["span"][0], s["qualified_name"]))
     edges_all.sort(
         key=lambda e: (

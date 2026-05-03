@@ -64,7 +64,7 @@ def aggregate(repo: Path) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for k, n in failures.items():
         if n >= FAILURE_THRESHOLD:
-            decay = ((n - FAILURE_THRESHOLD + 1)) * DECREMENT
+            decay = (n - FAILURE_THRESHOLD + 1) * DECREMENT
             out[k] = {"failures": n, "decay": decay}
     return out
 
