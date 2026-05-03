@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Lint
+        run: |
+          ruff check graphify_plus tests scripts
+          ruff format --check graphify_plus tests scripts
+      - name: Type check
+        run: mypy graphify_plus
+        continue-on-error: true   # tighten in later phases
+      - name: Tests
+        run: pytest -q
+      - name: Determinism
+        run: |
+          python -m graphify_plus init --repo tests/fixtures/sample_repo --print > /tmp/a.jsonl
+          python -m graphify_plus init --repo tests/fixtures/sample_repo --print > /tmp/b.jsonl
+          cmp /tmp/a.jsonl /tmp/b.jsonl
+      - name: Perf baseline
+        run: python scripts/perf_bench.py --baseline

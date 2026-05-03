@@ -96,6 +96,16 @@ def main(argv: list[str] | None = None) -> int:
         from graphify_plus.review.cli import main as diff_main
         return diff_main(rest)
 
+    if cmd == "init":
+        from graphify_plus.interface.cli.init_cmd import init_cmd
+        # Click commands are callable: standalone_mode=False bubbles errors
+        try:
+            init_cmd.main(args=rest, prog_name="graphify-plus init",
+                          standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        return 0
+
     if cmd == "enhance":
         print(
             "graphify-plus enhance: not yet shipped in this release.\n"
