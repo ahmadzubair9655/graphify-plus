@@ -34,23 +34,45 @@ import networkx as nx
 SeverityStr = str  # "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "INFO"
 
 _SEVERITY_RANK: dict[SeverityStr, int] = {
-    "INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4,
+    "INFO": 0,
+    "LOW": 1,
+    "MEDIUM": 2,
+    "HIGH": 3,
+    "CRITICAL": 4,
 }
 
-_DEPENDENCY_RELATIONS = frozenset({
-    "calls", "uses", "imports", "inherits_from", "depends_on",
-    "wraps", "delegates_to", "requires", "extends", "implements",
-    "overrides", "proxies",
-})
+_DEPENDENCY_RELATIONS = frozenset(
+    {
+        "calls",
+        "uses",
+        "imports",
+        "inherits_from",
+        "depends_on",
+        "wraps",
+        "delegates_to",
+        "requires",
+        "extends",
+        "implements",
+        "overrides",
+        "proxies",
+    }
+)
 
-_CAUSAL_RELATIONS = frozenset({
-    "caused_by", "mandated_by", "required_by", "response_to", "evolved_from",
-})
+_CAUSAL_RELATIONS = frozenset(
+    {
+        "caused_by",
+        "mandated_by",
+        "required_by",
+        "response_to",
+        "evolved_from",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
+
 
 def _load_graph(path: Path) -> nx.Graph:
     """Load a graph from JSON. Raises on malformed input."""
@@ -79,10 +101,7 @@ def _load_graph(path: Path) -> nx.Graph:
             continue
         src, tgt = edge.get("source"), edge.get("target")
         if src and tgt:
-            G.add_edge(src, tgt, **{
-                k: v for k, v in edge.items()
-                if k not in ("source", "target")
-            })
+            G.add_edge(src, tgt, **{k: v for k, v in edge.items() if k not in ("source", "target")})
     return G
 
 
@@ -98,6 +117,7 @@ def _normalise(arg: nx.Graph | Path | str) -> nx.Graph:
 # ---------------------------------------------------------------------------
 # Edge identity
 # ---------------------------------------------------------------------------
+
 
 def _edge_id(u: str, v: str, data: dict, directed: bool) -> tuple:
     """Stable identity for an edge — used for set comparisons across graphs."""
@@ -121,14 +141,14 @@ def _edges_with_data(G: nx.Graph) -> dict[tuple, dict]:
 # Per-change severity classification
 # ---------------------------------------------------------------------------
 
+
 def _node_removal_severity(G_old: nx.Graph, nid: str) -> SeverityStr:
     """How bad is removing this specific node?"""
     if not G_old.has_node(nid):
         return "INFO"
     deg = G_old.degree(nid)
     has_causal = any(
-        d.get("relation") in _CAUSAL_RELATIONS
-        for _, _, d in G_old.edges(nid, data=True)
+        d.get("relation") in _CAUSAL_RELATIONS for _, _, d in G_old.edges(nid, data=True)
     )
     if deg >= 10 or has_causal:
         return "CRITICAL"
@@ -159,6 +179,7 @@ def _aggregate_severity(items: list[SeverityStr]) -> SeverityStr:
 # ---------------------------------------------------------------------------
 # Diff computation — central function
 # ---------------------------------------------------------------------------
+
 
 def diff_graphs(
     old: nx.Graph | Path | str,
@@ -209,12 +230,14 @@ def diff_graphs(
                 changed_attrs[k] = {"old": ov, "new": nv}
         if changed_attrs:
             u, v, rel = eid
-            edge_attr_changes.append({
-                "source": str(u),
-                "target": str(v),
-                "relation": str(rel),
-                "changed_attrs": changed_attrs,
-            })
+            edge_attr_changes.append(
+                {
+                    "source": str(u),
+                    "target": str(v),
+                    "relation": str(rel),
+                    "changed_attrs": changed_attrs,
+                }
+            )
 
     # Detect node attribute changes
     node_attr_changes: list[dict] = []
@@ -229,44 +252,54 @@ def diff_graphs(
             if ov != nv:
                 changed[k] = {"old": ov, "new": nv}
         if changed:
-            node_attr_changes.append({
-                "id": str(nid),
-                "label": str(G_new.nodes[nid].get("label", nid)),
-                "changed_attrs": changed,
-            })
+            node_attr_changes.append(
+                {
+                    "id": str(nid),
+                    "label": str(G_new.nodes[nid].get("label", nid)),
+                    "changed_attrs": changed,
+                }
+            )
 
     # Edge type breakdown
     edge_types_added = Counter(rel for _, _, rel in added_edge_ids)
     edge_types_removed = Counter(rel for _, _, rel in removed_edge_ids)
 
     # God-node rank changes (top-20 only)
-    old_ranks = {nid: rank for rank, (nid, _) in enumerate(
-        sorted(G_old.degree(), key=lambda x: x[1], reverse=True)[:20]
-    )}
-    new_ranks = {nid: rank for rank, (nid, _) in enumerate(
-        sorted(G_new.degree(), key=lambda x: x[1], reverse=True)[:20]
-    )}
+    old_ranks = {
+        nid: rank
+        for rank, (nid, _) in enumerate(
+            sorted(G_old.degree(), key=lambda x: x[1], reverse=True)[:20]
+        )
+    }
+    new_ranks = {
+        nid: rank
+        for rank, (nid, _) in enumerate(
+            sorted(G_new.degree(), key=lambda x: x[1], reverse=True)[:20]
+        )
+    }
     rank_changes = []
     for nid in old_ranks:
         if nid in new_ranks:
             delta = old_ranks[nid] - new_ranks[nid]
             if delta != 0:
-                rank_changes.append({
-                    "id": str(nid),
-                    "label": str(G_new.nodes[nid].get("label", nid))
-                              if G_new.has_node(nid) else str(nid),
-                    "old_rank": old_ranks[nid] + 1,
-                    "new_rank": new_ranks[nid] + 1,
-                    "rank_delta": delta,
-                })
+                rank_changes.append(
+                    {
+                        "id": str(nid),
+                        "label": str(G_new.nodes[nid].get("label", nid))
+                        if G_new.has_node(nid)
+                        else str(nid),
+                        "old_rank": old_ranks[nid] + 1,
+                        "new_rank": new_ranks[nid] + 1,
+                        "rank_delta": delta,
+                    }
+                )
     rank_changes.sort(key=lambda x: abs(x["rank_delta"]), reverse=True)
 
     # Contradictions
     def _count_contradictions(G: nx.Graph) -> int:
-        return sum(
-            1 for _, _, d in G.edges(data=True)
-            if d.get("relation") == "CONTRADICTS"
-        ) + sum(1 for _, d in G.nodes(data=True) if d.get("contradiction"))
+        return sum(1 for _, _, d in G.edges(data=True) if d.get("relation") == "CONTRADICTS") + sum(
+            1 for _, d in G.nodes(data=True) if d.get("contradiction")
+        )
 
     contradictions_old = _count_contradictions(G_old)
     contradictions_new = _count_contradictions(G_new)
@@ -276,13 +309,15 @@ def diff_graphs(
     for u, v, data in G_old.edges(data=True):
         if data.get("relation") in _CAUSAL_RELATIONS:
             if u in set(removed_nodes) or v in set(removed_nodes):
-                orphaned_chains.append({
-                    "source": str(u),
-                    "target": str(v),
-                    "source_label": str(G_old.nodes[u].get("label", u)),
-                    "target_label": str(G_old.nodes[v].get("label", v)),
-                    "relation": str(data["relation"]),
-                })
+                orphaned_chains.append(
+                    {
+                        "source": str(u),
+                        "target": str(v),
+                        "source_label": str(G_old.nodes[u].get("label", u)),
+                        "target_label": str(G_old.nodes[v].get("label", v)),
+                        "relation": str(data["relation"]),
+                    }
+                )
 
     # Communities split/merged (heuristic via nodes' community attribute)
     community_changes = _detect_community_changes(G_old, G_new)
@@ -313,13 +348,15 @@ def diff_graphs(
     ]
 
     # Overall severity = max across all change categories
-    overall_severity = _aggregate_severity([
-        *(n["severity"] for n in added_with_severity),
-        *(n["severity"] for n in removed_with_severity),
-        "HIGH" if orphaned_chains else "INFO",
-        "MEDIUM" if contradictions_new > contradictions_old else "INFO",
-        "LOW" if rank_changes else "INFO",
-    ])
+    overall_severity = _aggregate_severity(
+        [
+            *(n["severity"] for n in added_with_severity),
+            *(n["severity"] for n in removed_with_severity),
+            "HIGH" if orphaned_chains else "INFO",
+            "MEDIUM" if contradictions_new > contradictions_old else "INFO",
+            "LOW" if rank_changes else "INFO",
+        ]
+    )
 
     return {
         "_schema": "graphify-plus-diff-1.1",
@@ -355,6 +392,7 @@ def diff_graphs(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _detect_community_changes(G_old: nx.Graph, G_new: nx.Graph) -> dict:
     """Crude detection of community split/merge events."""
     old_communities: dict[Any, set] = {}
@@ -380,6 +418,7 @@ def _compute_health_delta(
     new_report: dict | Path | str | None,
 ) -> dict | None:
     """Extract health-score delta from two report.json files/dicts."""
+
     def _load(report: dict | Path | str | None) -> dict | None:
         if report is None:
             return None
@@ -414,6 +453,7 @@ def _compute_health_delta(
 # Renderers
 # ---------------------------------------------------------------------------
 
+
 def _signed(n: int) -> str:
     return f"+{n}" if n > 0 else str(n)
 
@@ -421,10 +461,10 @@ def _signed(n: int) -> str:
 def _severity_emoji(sev: SeverityStr) -> str:
     return {
         "CRITICAL": "[CRITICAL]",
-        "HIGH":     "[HIGH]",
-        "MEDIUM":   "[MEDIUM]",
-        "LOW":      "[LOW]",
-        "INFO":     "[INFO]",
+        "HIGH": "[HIGH]",
+        "MEDIUM": "[MEDIUM]",
+        "LOW": "[LOW]",
+        "INFO": "[INFO]",
     }.get(sev, "")
 
 
@@ -449,8 +489,8 @@ def format_pr_comment(diff: dict, max_items: int = 5) -> str:
         delta = health["delta"]
         emoji = "+" if delta > 0 else ""
         lines.append(
-            f"**Health score:** {health['old_score']} ({health.get('old_grade','?')}) "
-            f"-> {health['new_score']} ({health.get('new_grade','?')}) "
+            f"**Health score:** {health['old_score']} ({health.get('old_grade', '?')}) "
+            f"-> {health['new_score']} ({health.get('new_grade', '?')}) "
             f"({emoji}{delta:+d})"
         )
         lines.append("")
@@ -465,13 +505,9 @@ def format_pr_comment(diff: dict, max_items: int = 5) -> str:
         lines.append("")
 
     if diff.get("orphaned_causal_chains"):
-        lines.append(
-            f"### {len(diff['orphaned_causal_chains'])} causal chain(s) orphaned"
-        )
+        lines.append(f"### {len(diff['orphaned_causal_chains'])} causal chain(s) orphaned")
         for c in diff["orphaned_causal_chains"][:max_items]:
-            lines.append(
-                f"- `{c['source_label']}` -[{c['relation']}]-> `{c['target_label']}`"
-            )
+            lines.append(f"- `{c['source_label']}` -[{c['relation']}]-> `{c['target_label']}`")
         lines.append("")
 
     if diff.get("nodes_added"):
@@ -486,9 +522,7 @@ def format_pr_comment(diff: dict, max_items: int = 5) -> str:
         lines.append(f"### - {len(diff['nodes_removed'])} node(s) removed")
         for n in diff["nodes_removed"][:max_items]:
             sev_str = _severity_emoji(n["severity"])
-            lines.append(
-                f"- `{n['label']}` (was {n['had_degree']} deg) {sev_str}"
-            )
+            lines.append(f"- `{n['label']}` (was {n['had_degree']} deg) {sev_str}")
         if len(diff["nodes_removed"]) > max_items:
             lines.append(f"- _... and {len(diff['nodes_removed']) - max_items} more_")
         lines.append("")

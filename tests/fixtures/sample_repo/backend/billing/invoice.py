@@ -1,4 +1,5 @@
 """Invoice domain model — tests/fixtures/sample_repo backend service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from typing import Iterable
 @dataclass
 class LineItem:
     """One line on an invoice."""
+
     sku: str
     qty: int
     unit_price: float

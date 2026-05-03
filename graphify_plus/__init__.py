@@ -15,6 +15,7 @@ Other modules referenced in the README (temporal, reconcile, causal, contradict,
 budget, writeback, report_json, counterfactual, verification, selfhealing,
 multimodal, live, federation, local, personal) are planned but not yet shipped.
 """
+
 from __future__ import annotations
 
 __version__ = "3.1.1"
