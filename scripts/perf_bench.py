@@ -27,6 +27,7 @@ BUDGETS = {  # seconds, on the small fixture
     "ingest": 5.0,
     "graph_load": 0.5,
     "symbol_lookup": 0.01,
+    "skeleton_lookup": 0.005,  # Phase 1: ≤5ms p95 per spec
 }
 
 
@@ -40,13 +41,19 @@ def _time(fn, repeat: int = 3) -> float:
 
 
 def run_benches() -> dict[str, float]:
+    from graphify_plus.core import cas
     from graphify_plus.core.ingest import ingest
+    from graphify_plus.core.skeletonizer import skeletonize_all
     from graphify_plus.runtime.store import Store, cache_path
 
     # Force a single full ingest first to seed the SQLite cache.
     res = ingest(FIXTURE, parallel=False)
+    skeletons = skeletonize_all(res.symbols)
     store = Store(cache_path(FIXTURE))
     store.replace_all(res.symbols, res.edges)
+    for sid, body in skeletons.items():
+        h = cas.put(store, body)
+        store.link_skeleton(sid, h)
     store.close()
 
     def _ingest():
@@ -65,10 +72,16 @@ def run_benches() -> dict[str, float]:
         s.get_symbol(sample_id)
         s.close()
 
+    def _skeleton_lookup():
+        s = Store(cache_path(FIXTURE))
+        s.get_skeleton_for_symbol(sample_id)
+        s.close()
+
     return {
         "ingest": _time(_ingest, repeat=2),
         "graph_load": _time(_load, repeat=5),
         "symbol_lookup": _time(_lookup, repeat=20),
+        "skeleton_lookup": _time(_skeleton_lookup, repeat=20),
     }
 
 

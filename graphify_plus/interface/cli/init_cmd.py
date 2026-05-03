@@ -10,7 +10,9 @@ from pathlib import Path
 import click
 import orjson
 
+from ...core import cas
 from ...core.ingest import ingest
+from ...core.skeletonizer import skeletonize_all
 from ...runtime.store import Store, cache_path
 
 
@@ -82,6 +84,20 @@ def init_cmd(repo: Path, print_jsonl: bool, no_parallel: bool) -> None:
             out.write(orjson.dumps({"kind": "edge", **e}, option=opt))
         return
 
+    # Build module-level export lists by walking export edges.
+    exports_by_module: dict[str, list[str]] = {}
+    sym_by_id = {s["id"]: s for s in result.symbols}
+    for e in result.edges:
+        if e.get("kind") == "exports":
+            mod_id = e.get("src")
+            tgt = e.get("dst")
+            if mod_id and tgt:
+                target_sym = sym_by_id.get(tgt)
+                name = target_sym["name"] if target_sym else tgt
+                exports_by_module.setdefault(mod_id, []).append(name)
+
+    skeletons = skeletonize_all(result.symbols, exports_by_module=exports_by_module)
+
     db = cache_path(repo)
     store = Store(db)
     try:
@@ -89,6 +105,13 @@ def init_cmd(repo: Path, print_jsonl: bool, no_parallel: bool) -> None:
         store.set_meta("repo_root", str(repo))
         store.set_meta("symbol_count", str(len(result.symbols)))
         store.set_meta("edge_count", str(len(result.edges)))
+        # CAS: dedupe identical skeleton bodies.
+        links: list[tuple[str, str]] = []
+        for sid, body in skeletons.items():
+            h = cas.put(store, body)
+            links.append((sid, h))
+        store.link_skeletons_bulk(links)
+        store.set_meta("skeleton_count", str(len(links)))
     finally:
         store.close()
 

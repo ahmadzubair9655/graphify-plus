@@ -43,6 +43,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     hash TEXT NOT NULL,
     PRIMARY KEY (id, hash)
 );
+CREATE TABLE IF NOT EXISTS symbol_skeletons (
+    symbol_id TEXT PRIMARY KEY,
+    hash      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_symbol_skeletons_hash ON symbol_skeletons(hash);
 """
 
 
@@ -148,6 +153,58 @@ class Store:
     def get_skeleton(self, h: str) -> str | None:
         row = self.conn.execute("SELECT body FROM skeletons WHERE hash=?", (h,)).fetchone()
         return row[0].decode("utf-8") if row else None
+
+    # ---- symbol → skeleton mapping --------------------------------------
+    def link_skeleton(self, symbol_id: str, skeleton_hash: str) -> None:
+        self.conn.execute(
+            "INSERT INTO symbol_skeletons(symbol_id, hash) VALUES(?, ?) "
+            "ON CONFLICT(symbol_id) DO UPDATE SET hash=excluded.hash",
+            (symbol_id, skeleton_hash),
+        )
+
+    def link_skeletons_bulk(self, mapping: Iterable[tuple[str, str]]) -> None:
+        self.conn.executemany(
+            "INSERT INTO symbol_skeletons(symbol_id, hash) VALUES(?, ?) "
+            "ON CONFLICT(symbol_id) DO UPDATE SET hash=excluded.hash",
+            list(mapping),
+        )
+
+    def get_skeleton_for_symbol(self, symbol_id: str) -> str | None:
+        row = self.conn.execute(
+            "SELECT body FROM symbol_skeletons s JOIN skeletons k ON s.hash = k.hash "
+            "WHERE s.symbol_id = ?",
+            (symbol_id,),
+        ).fetchone()
+        return row[0].decode("utf-8") if row else None
+
+    def find_symbols_by_qualified_name(self, qname: str) -> list[Symbol]:
+        """Return symbols matching ``qname``.
+
+        Match priority: exact qualified_name, then exact name, then
+        suffix-match on qualified_name (so 'Invoice.total' finds
+        'invoice.Invoice.total'). Linear scan — Phase 4 will index.
+        """
+        rows = self.conn.execute("SELECT json FROM symbols").fetchall()
+        exact: list[Symbol] = []
+        suffix: list[Symbol] = []
+        suffix_key = "." + qname
+        for r in rows:
+            s = self._decode_symbol(r[0])
+            if s.get("qualified_name") == qname or s.get("name") == qname:
+                exact.append(s)
+            elif (s.get("qualified_name") or "").endswith(suffix_key):
+                suffix.append(s)
+        return exact or suffix
+
+    def symbols_in_path(self, path: str) -> list[Symbol]:
+        rows = self.conn.execute("SELECT json FROM symbols").fetchall()
+        out: list[Symbol] = []
+        for r in rows:
+            s = self._decode_symbol(r[0])
+            if s.get("path") == path:
+                out.append(s)
+        out.sort(key=lambda s: (s.get("span") or (0, 0))[0])
+        return out
 
 
 __all__ = ["Store", "cache_path"]
