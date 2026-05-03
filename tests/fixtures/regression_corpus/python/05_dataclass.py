@@ -7,4 +7,4 @@ class Point:
     y: float
 
     def magnitude(self):
-        return (self.x ** 2 + self.y ** 2) ** 0.5
+        return (self.x**2 + self.y**2) ** 0.5

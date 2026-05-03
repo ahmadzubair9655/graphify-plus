@@ -1,10 +1,8 @@
 """Production-grade test suite for graphify_plus.audit."""
 
 import json
-import random
-from pathlib import Path
+
 import networkx as nx
-import pytest
 
 
 def _make_basic_graph():
@@ -432,7 +430,7 @@ class TestRunAudit:
 
 class TestFormatAndThreshold:
     def test_format_audit_report(self):
-        from graphify_plus.audit.probe import run_audit, format_audit_report
+        from graphify_plus.audit.probe import format_audit_report, run_audit
 
         G = _make_basic_graph()
         r = run_audit(G)
@@ -440,7 +438,7 @@ class TestFormatAndThreshold:
         assert "Adversarial Audit Report" in md
 
     def test_format_skipped_audit(self):
-        from graphify_plus.audit.probe import run_audit, format_audit_report
+        from graphify_plus.audit.probe import format_audit_report, run_audit
 
         r = run_audit(nx.Graph())
         md = format_audit_report(r)

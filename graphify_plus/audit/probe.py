@@ -714,11 +714,21 @@ def _aggregate_grade(probe_results: dict[str, dict]) -> dict:
 
     weighted_sum = 0.0
     weight_total = 0.0
-    grades_present: dict[str, str] = {}
+    # Bug 6 (v5.0.3): skipped probes are surfaced with grade=SKIP and a
+    # human reason instead of being silently dropped from the report.
+    # Skipped probes do NOT contribute to the weighted score (you cannot
+    # grade a probe that didn't run), but they ARE shown to the operator
+    # so missing data is honest rather than invisible.
+    grades_present: dict[str, str | dict] = {}
+    skipped_components: dict[str, dict] = {}
 
     for probe_key, grade_field, weight in grade_keys:
         result = probe_results.get(probe_key, {})
         if result.get("skipped"):
+            skipped_components[probe_key] = {
+                "grade": "SKIP",
+                "reason": result.get("reason") or "probe skipped (no reason given)",
+            }
             continue
         g = result.get(grade_field)
         if g and g != "N/A":
@@ -729,7 +739,12 @@ def _aggregate_grade(probe_results: dict[str, dict]) -> dict:
                 grades_present[probe_key] = g
 
     if weight_total == 0:
-        return {"overall_grade": "N/A", "components": {}, "weighted_score": None}
+        return {
+            "overall_grade": "N/A",
+            "components": {},
+            "skipped_components": skipped_components,
+            "weighted_score": None,
+        }
 
     avg = weighted_sum / weight_total
     if avg >= 3.5:
@@ -747,6 +762,7 @@ def _aggregate_grade(probe_results: dict[str, dict]) -> dict:
         "overall_grade": overall,
         "weighted_score": round(avg, 3),
         "components": grades_present,
+        "skipped_components": skipped_components,
     }
 
 
@@ -821,6 +837,7 @@ def run_audit(
         "overall_grade": aggregate["overall_grade"],
         "weighted_score": aggregate["weighted_score"],
         "component_grades": aggregate["components"],
+        "skipped_components": aggregate.get("skipped_components", {}),
         **results,
         "warnings": warnings,
     }
@@ -856,6 +873,14 @@ def format_audit_report(audit: dict) -> str:
         f"## {grade_emoji} Overall: **{overall}** "
         f"({f'weighted score {score}' if score is not None else 'no scoreable probes'})\n"
     )
+
+    skipped_components = audit.get("skipped_components") or {}
+    if skipped_components:
+        lines.append("**Skipped probes** (excluded from trust score — known reasons):")
+        for probe_key, info in sorted(skipped_components.items()):
+            reason = info.get("reason") if isinstance(info, dict) else "unknown"
+            lines.append(f"- `{probe_key}`: SKIP — {reason}")
+        lines.append("")
 
     sections = [
         ("edge_deletion_stability", "1. Edge deletion stability", "stability_grade"),

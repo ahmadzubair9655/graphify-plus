@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+
 import networkx as nx
 import pytest
 
