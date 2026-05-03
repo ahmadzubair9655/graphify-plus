@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "graphify-plus"
-version = "3.1.0"
+version = "3.1.1"
 description = "Drop-in enhancement layer for graphify with adversarial audit, graph diff for code review, contradiction detection, causal chains, health scoring, MCP write-back, and cross-repo reconciliation."
 readme = "README.md"
 requires-python = ">=3.10"
