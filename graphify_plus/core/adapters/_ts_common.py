@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tree_sitter_languages import get_parser  # type: ignore[import-untyped]
 
-from .base import Edge, Symbol, make_symbol_id
+from .base import CONF_EXACT, CONF_FALLBACK, Edge, Symbol, make_symbol_id
 
 
 def _text(node, source: bytes) -> str:
@@ -88,7 +88,16 @@ def parse_ts_like(
             )
         )
         if parent_id is not None:
-            edges.append(Edge(src=parent_id, dst=sid, kind="contains", resolved=True, span=None))
+            edges.append(
+                Edge(
+                    src=parent_id,
+                    dst=sid,
+                    kind="contains",
+                    resolved=True,
+                    span=None,
+                    confidence=CONF_EXACT,
+                )
+            )
         return sid
 
     def walk(node, parent_qname: str, parent_id: str | None) -> None:
@@ -138,7 +147,14 @@ def parse_ts_like(
                                 )
                             )
                             edges.append(
-                                Edge(src=cid, dst=mid, kind="contains", resolved=True, span=None)
+                                Edge(
+                                    src=cid,
+                                    dst=mid,
+                                    kind="contains",
+                                    resolved=True,
+                                    span=None,
+                                    confidence=CONF_EXACT,
+                                )
                             )
             return
 
@@ -164,6 +180,7 @@ def parse_ts_like(
                     kind="imports",
                     resolved=False,
                     span=(node.start_point[0] + 1, node.end_point[0] + 1),
+                    confidence=CONF_FALLBACK,
                 )
             )
             return
