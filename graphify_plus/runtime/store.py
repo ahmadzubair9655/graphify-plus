@@ -21,6 +21,7 @@ Phase 11 hardens this layer:
 
 from __future__ import annotations
 
+import logging
 import shutil
 import sqlite3
 import time
@@ -30,6 +31,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import orjson
+
+log = logging.getLogger("graphify_plus.runtime.store")
 
 from ..core.adapters import Edge, Symbol
 from ..interface.errors import (
@@ -217,12 +220,38 @@ class Store:
 
     # ---- symbols & edges ------------------------------------------------
     def replace_all(self, symbols: Iterable[Symbol], edges: Iterable[Edge]) -> None:
+        # Dedupe symbols by id (last occurrence wins) so callers feeding
+        # multi-pass extractor output don't blow up on the UNIQUE(id)
+        # constraint. Duplicate IDs typically signal an upstream extractor
+        # bug (TS overload, default-export collision, two adapters claiming
+        # the same file) — log a warning with a sample so it stays
+        # discoverable in debug.log instead of silently being collapsed.
+        unique_symbols: dict[str, Symbol] = {}
+        dup_count = 0
+        dup_samples: list[str] = []
+        for s in symbols:
+            sid = s["id"]
+            if sid in unique_symbols:
+                dup_count += 1
+                if len(dup_samples) < 5:
+                    dup_samples.append(sid)
+            unique_symbols[sid] = s
+        if dup_count:
+            log.warning(
+                "replace_all: dropped %d duplicate symbol id(s); samples=%s",
+                dup_count,
+                dup_samples,
+            )
+
         with self.tx():
             self.conn.execute("DELETE FROM symbols")
             self.conn.execute("DELETE FROM edges")
             self.conn.executemany(
                 "INSERT INTO symbols(id, json) VALUES (?, ?)",
-                [(s["id"], orjson.dumps(s, option=orjson.OPT_SORT_KEYS)) for s in symbols],
+                [
+                    (sid, orjson.dumps(s, option=orjson.OPT_SORT_KEYS))
+                    for sid, s in unique_symbols.items()
+                ],
             )
             self.conn.executemany(
                 "INSERT INTO edges(src, dst, kind, json) VALUES (?, ?, ?, ?)",
