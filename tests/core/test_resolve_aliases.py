@@ -47,6 +47,39 @@ def test_strip_jsonc_handles_comments_and_trailing_commas():
     assert parsed == {"a": 1, "b": [1, 2]}
 
 
+def test_strip_jsonc_preserves_glob_patterns_inside_strings():
+    """Regression: ``"**/*.ts"`` inside an array contains characters that
+    look like the start of a block comment. The string-aware stripper
+    must NOT treat them as comments.
+    """
+    text = (
+        "{\n"
+        '  "include": [\n'
+        '    "**/*.ts",\n'
+        '    "**/*.tsx",\n'
+        '    ".next/types/**/*.ts"\n'
+        "  ],\n"
+        '  "compilerOptions": {\n'
+        "    // a real comment\n"
+        '    "paths": {"@/*": ["./src/*"]}\n'
+        "  }\n"
+        "}\n"
+    )
+    import json
+
+    parsed = json.loads(_strip_jsonc(text))
+    assert parsed["include"] == ["**/*.ts", "**/*.tsx", ".next/types/**/*.ts"]
+    assert parsed["compilerOptions"]["paths"] == {"@/*": ["./src/*"]}
+
+
+def test_strip_jsonc_respects_escaped_quotes():
+    text = '{"a": "he said \\"hi\\"", "b": "//not a comment"}'
+    import json
+
+    parsed = json.loads(_strip_jsonc(text))
+    assert parsed == {"a": 'he said "hi"', "b": "//not a comment"}
+
+
 def test_load_alias_map_reads_paths_and_baseurl(tmp_path: Path):
     _seed(tmp_path)
     am = load_alias_map(tmp_path)

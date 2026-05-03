@@ -38,17 +38,58 @@ from pathlib import Path
 from .adapters.base import CONF_RESOLVED, Edge, Symbol
 
 # ---------- comment-stripping JSON loader ----------------------------------
+#
+# A naive ``/\*.*?\*/`` regex eats glob patterns like ``"**/*.ts"`` inside
+# JSON string literals (the leading ``/*`` looks like the start of a block
+# comment, the closing ``*/`` matches the next ``*/`` even when it is the
+# end of an unrelated glob). We scan char-by-char and strip comments only
+# OUTSIDE of string literals — essential for tsconfig files that include
+# glob arrays.
 
-_LINE_COMMENT = re.compile(r"//[^\n]*")
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _TRAILING_COMMA = re.compile(r",(\s*[}\]])")
 
 
 def _strip_jsonc(text: str) -> str:
-    text = _BLOCK_COMMENT.sub("", text)
-    text = _LINE_COMMENT.sub("", text)
-    text = _TRAILING_COMMA.sub(r"\1", text)
-    return text
+    """Remove ``//`` line comments, ``/* */`` block comments, and trailing
+    commas — but only outside JSON string literals.
+    """
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    in_string = False
+    while i < n:
+        ch = text[i]
+        if in_string:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+        # Outside a string — strip comments.
+        if ch == "/" and i + 1 < n:
+            nxt = text[i + 1]
+            if nxt == "/":
+                # line comment: skip to next newline
+                j = text.find("\n", i + 2)
+                i = n if j == -1 else j
+                continue
+            if nxt == "*":
+                # block comment: skip to closing */
+                j = text.find("*/", i + 2)
+                i = n if j == -1 else j + 2
+                continue
+        out.append(ch)
+        i += 1
+    return _TRAILING_COMMA.sub(r"\1", "".join(out))
 
 
 def _load_jsonc(path: Path) -> dict | None:

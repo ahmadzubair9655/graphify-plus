@@ -76,3 +76,20 @@ def test_doctor_cli_exit_codes(tmp_path: Path):
     )
     # No cache → ERROR diagnostic → exit 1.
     assert res2.returncode == 1
+
+
+def test_doctor_warns_about_audit_capability_gap(tmp_path: Path):
+    """A fresh `gp init` produces a graph without `community` attributes
+    or INFERRED-confidence edges; doctor should warn that 3 audit probes
+    will SKIP, BEFORE the operator runs `gp audit`."""
+    repo = _seed(tmp_path)
+    diags = diagnose(repo)
+    cap = [d for d in diags if d.section == "Audit capability"]
+    assert cap, "expected an Audit capability diagnostic"
+    # Fresh fixture has no community + no INFERRED → expect WARN with both gaps.
+    warn = next((d for d in cap if d.severity == "WARN"), None)
+    assert warn is not None, f"expected WARN, got {[d.severity for d in cap]}"
+    assert "SKIP" in warn.message
+    rem = warn.remediation or ""
+    assert "gp enrich" in rem
+    assert "community" in rem.lower()
