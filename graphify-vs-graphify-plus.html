@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>graphify vs graphify-plus — A structural comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1815;
+    --paper: #f4ede0;
+    --paper-warm: #ebe1cf;
+    --rule: #c8b994;
+    --accent: #c2410c;
+    --accent-soft: rgba(194, 65, 12, 0.08);
+    --green: #2d5016;
+    --muted: #6b6357;
+    --highlight: #f5d76e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Fraunces', Georgia, serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    font-feature-settings: "ss01", "ss02";
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 20% 80%, rgba(194,65,12,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(45,80,22,0.03) 0%, transparent 50%);
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.6'/%3E%3C/svg%3E");
+    opacity: 0.18;
+    mix-blend-mode: multiply;
+    z-index: 1;
+  }
+
+  .container { max-width: 1280px; margin: 0 auto; padding: 0 4rem; position: relative; z-index: 2; }
+
+  /* ─── Header ─────────────────────────────────────────────────── */
+  header {
+    padding: 5rem 0 3rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .meta-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    margin-bottom: 3rem;
+  }
+
+  .meta-bar .dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.3); }
+  }
+
+  h1 {
+    font-size: clamp(3rem, 7vw, 6.5rem);
+    line-height: 0.95;
+    font-weight: 300;
+    letter-spacing: -0.04em;
+    font-style: italic;
+    color: var(--ink);
+  }
+
+  h1 .vs {
+    font-style: normal;
+    font-weight: 800;
+    color: var(--accent);
+    font-size: 0.5em;
+    vertical-align: middle;
+    margin: 0 0.3em;
+    letter-spacing: 0.05em;
+    transform: translateY(-0.3em);
+    display: inline-block;
+  }
+
+  h1 .gp {
+    font-weight: 600;
+    font-style: normal;
+  }
+
+  .subtitle {
+    margin-top: 2rem;
+    font-size: 1.25rem;
+    max-width: 700px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ─── Lineage diagram ────────────────────────────────────────── */
+  .lineage {
+    padding: 5rem 0 3rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .section-label::before {
+    content: "";
+    width: 30px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  .section-title {
+    font-size: 2.75rem;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    margin-bottom: 3rem;
+    line-height: 1.1;
+  }
+
+  .section-title em { color: var(--accent); font-weight: 400; }
+
+  .lineage-diagram {
+    background: var(--paper-warm);
+    border: 2px solid var(--ink);
+    padding: 3rem;
+    position: relative;
+    box-shadow: 8px 8px 0 var(--ink);
+  }
+
+  .lineage-diagram svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .lineage-caption {
+    margin-top: 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* ─── Comparison table ───────────────────────────────────────── */
+  .comparison {
+    padding: 5rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 1fr;
+    border-top: 2px solid var(--ink);
+  }
+
+  .comparison-grid > div {
+    padding: 1.5rem 1.25rem;
+    border-bottom: 1px solid var(--rule);
+    border-right: 1px solid var(--rule);
+  }
+
+  .comparison-grid > div:nth-child(3n) { border-right: none; }
+
+  .col-header {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+  }
+
+  .col-header.gp {
+    background: var(--accent);
+  }
+
+  .row-label {
+    font-weight: 600;
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--ink);
+    background: var(--paper-warm);
+  }
+
+  .cell {
+    font-size: 0.95rem;
+    color: var(--ink);
+    background: var(--paper);
+  }
+
+  .cell.gp {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+  }
+
+  .cell strong { font-weight: 600; color: var(--accent); }
+  .cell code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82em;
+    background: rgba(26,24,21,0.06);
+    padding: 0.1em 0.35em;
+    border-radius: 2px;
+  }
+
+  .check, .cross, .partial {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  .check { color: var(--green); }
+  .cross { color: var(--muted); opacity: 0.5; }
+  .partial { color: #b45309; }
+
+  /* ─── Stats grid ─────────────────────────────────────────────── */
+  .stats {
+    padding: 5rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-top: 3rem;
+  }
+
+  .stat {
+    padding: 2rem 1.5rem;
+    border-right: 1px solid var(--rule);
+    position: relative;
+  }
+
+  .stat:last-child { border-right: none; }
+
+  .stat-num {
+    font-size: 4rem;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--ink);
+    font-feature-settings: "tnum";
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
+  }
+
+  .stat-num .unit {
+    font-size: 0.4em;
+    color: var(--muted);
+    margin-left: 0.2em;
+    letter-spacing: 0;
+  }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .stat-detail {
+    font-size: 0.85rem;
+    color: var(--ink);
+    line-height: 1.4;
+    font-style: italic;
+  }
+
+  /* ─── Architecture comparison ────────────────────────────────── */
+  .architecture {
+    padding: 5rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .arch-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-top: 3rem;
+  }
+
+  .arch-card {
+    background: var(--paper-warm);
+    border: 1px solid var(--ink);
+    padding: 2.5rem;
+    position: relative;
+  }
+
+  .arch-card.gp {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--accent);
+    box-shadow: 6px 6px 0 var(--accent);
+  }
+
+  .arch-card .card-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 1rem;
+    opacity: 0.7;
+  }
+
+  .arch-card h3 {
+    font-size: 1.75rem;
+    font-weight: 400;
+    font-style: italic;
+    margin-bottom: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .arch-card.gp h3 { color: var(--paper); }
+
+  .pipeline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.9;
+  }
+
+  .pipeline .step {
+    padding: 0.4rem 0;
+    border-bottom: 1px dashed var(--rule);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .arch-card.gp .pipeline .step {
+    border-bottom-color: rgba(244,237,224,0.15);
+  }
+
+  .pipeline .step-num {
+    color: var(--muted);
+    width: 1.5rem;
+  }
+
+  .arch-card.gp .pipeline .step-num {
+    color: var(--accent);
+  }
+
+  .pipeline .step-name { font-weight: 500; }
+
+  .pipeline .step.new {
+    background: var(--accent-soft);
+    margin: 0.2rem -0.5rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    border-bottom: 1px solid rgba(194,65,12,0.3);
+  }
+
+  .arch-card.gp .pipeline .step.new {
+    background: rgba(194,65,12,0.25);
+    border-bottom-color: var(--accent);
+  }
+
+  .pipeline .step.new .step-tag {
+    margin-left: auto;
+    background: var(--accent);
+    color: var(--paper);
+    font-size: 0.65rem;
+    padding: 0.1em 0.5em;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ─── Feature deep-dive sections ─────────────────────────────── */
+  .features {
+    padding: 5rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .feature-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-top: 3rem;
+  }
+
+  .feature {
+    display: grid;
+    grid-template-columns: 80px 1fr 350px;
+    gap: 2rem;
+    padding: 2rem 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: start;
+    transition: background-color 0.3s ease;
+  }
+
+  .feature:hover {
+    background: var(--paper-warm);
+  }
+
+  .feature-num {
+    font-family: 'Fraunces', serif;
+    font-size: 3rem;
+    font-weight: 300;
+    color: var(--accent);
+    line-height: 1;
+    font-feature-settings: "lnum";
+    font-style: italic;
+  }
+
+  .feature-content h3 {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.01em;
+  }
+
+  .feature-content p {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.65;
+  }
+
+  .feature-content p strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .feature-status {
+    text-align: right;
+  }
+
+  .status-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding: 0.4em 0.8em;
+    border: 1px solid;
+    margin-bottom: 0.5rem;
+  }
+
+  .status-badge.full { color: var(--green); border-color: var(--green); background: rgba(45,80,22,0.05); }
+  .status-badge.proto { color: #b45309; border-color: #b45309; background: rgba(180,83,9,0.05); }
+  .status-badge.stub { color: var(--muted); border-color: var(--muted); background: rgba(107,99,87,0.05); }
+
+  .feature-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .feature-meta .meta-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dotted var(--rule);
+    padding: 0.25rem 0;
+  }
+
+  /* ─── CLI showcase ───────────────────────────────────────────── */
+  .cli-section {
+    padding: 5rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .terminal {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 6px;
+    padding: 1.5rem 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    margin-top: 2rem;
+    box-shadow: 8px 8px 0 var(--rule);
+    border: 1px solid var(--ink);
+    overflow-x: auto;
+  }
+
+  .terminal-header {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(244,237,224,0.15);
+  }
+
+  .term-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .term-dot.r { background: #ef4444; }
+  .term-dot.y { background: var(--highlight); }
+  .term-dot.g { background: #22c55e; }
+
+  .terminal .prompt { color: var(--accent); }
+  .terminal .cmd { color: var(--paper); }
+  .terminal .out { color: rgba(244,237,224,0.7); }
+  .terminal .grade { color: var(--highlight); font-weight: 700; }
+  .terminal .warn { color: #fb923c; }
+  .terminal .ok { color: #4ade80; }
+  .terminal .em { color: var(--accent); font-weight: 700; }
+
+  /* ─── Conclusion ─────────────────────────────────────────────── */
+  .conclusion {
+    padding: 6rem 0 8rem;
+    text-align: center;
+  }
+
+  .conclusion-quote {
+    font-size: clamp(1.75rem, 3.5vw, 2.75rem);
+    font-style: italic;
+    font-weight: 300;
+    line-height: 1.3;
+    max-width: 900px;
+    margin: 0 auto 3rem;
+    letter-spacing: -0.01em;
+  }
+
+  .conclusion-quote em {
+    color: var(--accent);
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  .footer-meta {
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+
+  /* ─── Responsive ─────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .container { padding: 0 1.5rem; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .stat:nth-child(2) { border-right: none; }
+    .arch-split { grid-template-columns: 1fr; }
+    .comparison-grid { grid-template-columns: 1fr; }
+    .comparison-grid > div { border-right: none; }
+    .feature { grid-template-columns: 60px 1fr; }
+    .feature-status { grid-column: 1 / -1; text-align: left; padding-top: 1rem; }
+    .feature-num { font-size: 2.25rem; }
+  }
+
+  /* ─── Scroll reveal ──────────────────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<header class="container">
+  <div class="meta-bar">
+    <span><span class="dot"></span>Technical comparison · revision 3.1</span>
+    <span>graphify-plus / 2026</span>
+  </div>
+  <h1>
+    <em>graphify</em>
+    <span class="vs">VS</span>
+    <span class="gp">graphify-plus</span>
+  </h1>
+  <p class="subtitle">
+    A structural comparison of two approaches to the knowledge-graph layer for
+    AI coding assistants — the upstream extractor and the enhancement layer
+    that sits on top of it.
+  </p>
+</header>
+
+<!-- ────────────────────────────────────────────────────────────── -->
+<!-- Lineage diagram                                                  -->
+<!-- ────────────────────────────────────────────────────────────── -->
+<section class="lineage container">
+  <div class="section-label">§ 01 · Lineage</div>
+  <h2 class="section-title">A layer cake, not a fork — <em>graphify-plus runs on top of graphify, not against it.</em></h2>
+
+  <div class="lineage-diagram">
+    <svg viewBox="0 0 1100 360" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono, monospace">
+      <!-- Source corpus -->
+      <rect x="20" y="140" width="160" height="80" fill="#ebe1cf" stroke="#1a1815" stroke-width="2"/>
+      <text x="100" y="175" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1815">SOURCE CORPUS</text>
+      <text x="100" y="195" text-anchor="middle" font-size="10" fill="#6b6357">code · docs · papers</text>
+      <text x="100" y="208" text-anchor="middle" font-size="10" fill="#6b6357">images · video · audio</text>
+
+      <!-- Arrow to graphify -->
+      <line x1="180" y1="180" x2="220" y2="180" stroke="#1a1815" stroke-width="2"/>
+      <polygon points="220,180 213,176 213,184" fill="#1a1815"/>
+
+      <!-- graphify pipeline box -->
+      <rect x="220" y="80" width="380" height="200" fill="#f4ede0" stroke="#1a1815" stroke-width="2"/>
+      <text x="410" y="105" text-anchor="middle" font-size="12" font-weight="700" fill="#1a1815" letter-spacing="2">GRAPHIFY (UPSTREAM)</text>
+      <line x1="240" y1="115" x2="580" y2="115" stroke="#c8b994" stroke-width="1"/>
+
+      <!-- Pipeline stages -->
+      <g font-size="10.5" fill="#1a1815">
+        <text x="240" y="140">→ detect()</text>
+        <text x="240" y="158">→ extract()</text>
+        <text x="240" y="176">→ build_graph()</text>
+        <text x="240" y="194">→ cluster()  [Leiden]</text>
+        <text x="240" y="212">→ analyze()</text>
+        <text x="240" y="230">→ report()</text>
+        <text x="240" y="248">→ export()</text>
+      </g>
+
+      <!-- Outputs from graphify -->
+      <text x="430" y="140" font-size="10" fill="#6b6357" font-style="italic">outputs:</text>
+      <rect x="430" y="148" width="155" height="22" fill="#ebe1cf" stroke="#c8b994"/>
+      <text x="437" y="163" font-size="9.5" fill="#1a1815">graph.json</text>
+      <rect x="430" y="174" width="155" height="22" fill="#ebe1cf" stroke="#c8b994"/>
+      <text x="437" y="189" font-size="9.5" fill="#1a1815">GRAPH_REPORT.md</text>
+      <rect x="430" y="200" width="155" height="22" fill="#ebe1cf" stroke="#c8b994"/>
+      <text x="437" y="215" font-size="9.5" fill="#1a1815">graph.html</text>
+      <rect x="430" y="226" width="155" height="22" fill="#ebe1cf" stroke="#c8b994"/>
+      <text x="437" y="241" font-size="9.5" fill="#1a1815">cache/</text>
+
+      <!-- Arrow into graphify-plus -->
+      <line x1="600" y1="180" x2="640" y2="180" stroke="#c2410c" stroke-width="2.5"/>
+      <polygon points="640,180 633,176 633,184" fill="#c2410c"/>
+      <text x="620" y="172" text-anchor="middle" font-size="9" fill="#c2410c" font-weight="700">reads</text>
+
+      <!-- graphify-plus box -->
+      <rect x="640" y="20" width="430" height="320" fill="#1a1815" stroke="#c2410c" stroke-width="2.5"/>
+      <text x="855" y="48" text-anchor="middle" font-size="12" font-weight="700" fill="#f4ede0" letter-spacing="2">GRAPHIFY-PLUS (THIS PROJECT)</text>
+      <line x1="660" y1="58" x2="1050" y2="58" stroke="#c2410c" stroke-width="1"/>
+
+      <!-- enhancements -->
+      <g font-size="10" fill="#f4ede0">
+        <text x="660" y="80" font-weight="700" fill="#c2410c">7 v2 enhancements:</text>
+        <text x="675" y="98">temporal · contradict · causal</text>
+        <text x="675" y="113">budget · writeback · reconcile</text>
+        <text x="675" y="128">report_json (health score)</text>
+
+        <text x="660" y="155" font-weight="700" fill="#c2410c">5 v3 production features:</text>
+        <text x="675" y="173">audit (7 probes)</text>
+        <text x="675" y="188">counterfactual simulation</text>
+        <text x="675" y="203">multi-agent verification</text>
+        <text x="675" y="218">graph diff for code review</text>
+        <text x="675" y="233">self-healing proposals</text>
+
+        <text x="660" y="260" font-weight="700" fill="#c2410c">v3 prototypes/stubs:</text>
+        <text x="675" y="278">multimodal · live daemon</text>
+        <text x="675" y="293">federation · local extractor</text>
+        <text x="675" y="308">personal sources</text>
+      </g>
+
+      <!-- Output of graphify-plus -->
+      <rect x="900" y="80" width="160" height="22" fill="#c2410c" stroke="#f4ede0"/>
+      <text x="980" y="95" text-anchor="middle" font-size="9.5" fill="#f4ede0" font-weight="700">graph_enhanced.json</text>
+      <rect x="900" y="106" width="160" height="22" fill="#c2410c" stroke="#f4ede0"/>
+      <text x="980" y="121" text-anchor="middle" font-size="9.5" fill="#f4ede0" font-weight="700">report.json</text>
+      <rect x="900" y="132" width="160" height="22" fill="#c2410c" stroke="#f4ede0"/>
+      <text x="980" y="147" text-anchor="middle" font-size="9.5" fill="#f4ede0" font-weight="700">audit.json</text>
+      <rect x="900" y="158" width="160" height="22" fill="#c2410c" stroke="#f4ede0"/>
+      <text x="980" y="173" text-anchor="middle" font-size="9.5" fill="#f4ede0" font-weight="700">corrections.jsonl</text>
+
+      <!-- Footnote line -->
+      <line x1="20" y1="320" x2="1080" y2="320" stroke="#c8b994" stroke-width="0.5" stroke-dasharray="4,3"/>
+      <text x="20" y="345" font-size="10" fill="#6b6357" font-style="italic">
+        ↳ graphify-plus never modifies graphify's outputs in place — it reads them and writes new files alongside.
+      </text>
+    </svg>
+  </div>
+  <p class="lineage-caption">
+    fig. 01 — flow of data through the two layers. graphify owns extraction; graphify-plus owns evaluation, audit, and reasoning over the extracted graph.
+  </p>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────── -->
+<!-- Stats                                                            -->
+<!-- ────────────────────────────────────────────────────────────── -->
+<section class="stats container">
+  <div class="section-label">§ 02 · Footprint</div>
+  <h2 class="section-title">Numbers that <em>matter</em>, not vanity metrics.</h2>
+
+  <div class="stats-grid">
+    <div class="stat">
+      <div class="stat-label">Modules added</div>
+      <div class="stat-num">14</div>
+      <div class="stat-detail">on top of graphify's existing pipeline — none replace it.</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Lines of Python</div>
+      <div class="stat-num">7,466</div>
+      <div class="stat-detail">across <code style="font-family:'JetBrains Mono',monospace;font-size:0.75rem">graphify_plus/*</code> and tests.</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tests passing</div>
+      <div class="stat-num">172</div>
+      <div class="stat-detail">in 0.54s. Edge cases, unicode, multigraphs, malformed input all covered.</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">New CLI verbs</div>
+      <div class="stat-num">3</div>
+      <div class="stat-detail">enhance · audit · diff. Routed through one entry point.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────── -->
+<!-- Comparison table                                                 -->
+<!-- ────────────────────────────────────────────────────────────── -->
+<section class="comparison container">
+  <div class="section-label">§ 03 · Capability matrix</div>
+  <h2 class="section-title">Where <em>graphify-plus</em> earns its keep.</h2>
+
+  <div class="comparison-grid">
+    <div class="col-header">Capability</div>
+    <div class="col-header">graphify</div>
+    <div class="col-header gp">graphify-plus</div>
+
+    <div class="row-label">Build a knowledge graph from a corpus</div>
+    <div class="cell"><span class="check">✓</span> tree-sitter AST + Claude subagents</div>
+    <div class="cell gp">delegated to graphify (no replacement)</div>
+
+    <div class="row-label">Confidence labels on edges</div>
+    <div class="cell"><span class="check">✓</span> EXTRACTED · INFERRED · AMBIGUOUS</div>
+    <div class="cell gp"><span class="check">✓</span> + <strong>CONTRADICTS</strong> for AST↔LLM disagreements</div>
+
+    <div class="row-label">Temporal data on nodes</div>
+    <div class="cell"><span class="cross">none</span></div>
+    <div class="cell gp"><span class="check">✓</span> <code>first_seen</code>, <code>last_modified</code>, author, supersedes edges</div>
+
+    <div class="row-label">Cross-repo deduplication after merge</div>
+    <div class="cell"><span class="cross">manual</span> — <code>merge-graphs</code> unions but doesn't reconcile</div>
+    <div class="cell gp"><span class="check">✓</span> auto-namespace + LLM/heuristic equivalence detection</div>
+
+    <div class="row-label">Causal "why does this exist?" chains</div>
+    <div class="cell"><span class="partial">partial</span> — single rationale_for nodes</div>
+    <div class="cell gp"><span class="check">✓</span> chain extraction → top_causal_chains, ranked by downstream count</div>
+
+    <div class="row-label">Contradiction detection</div>
+    <div class="cell"><span class="cross">none</span></div>
+    <div class="cell gp"><span class="check">✓</span> dynamic exclusive-pair inference + docstring-vs-AST checks</div>
+
+    <div class="row-label">Token-budgeted retrieval</div>
+    <div class="cell"><span class="partial">truncates</span> at byte budget</div>
+    <div class="cell gp"><span class="check">✓</span> importance-ranked: centrality + hop + confidence + recency</div>
+
+    <div class="row-label">MCP write tools (annotate/correct)</div>
+    <div class="cell"><span class="cross">read-only</span></div>
+    <div class="cell gp"><span class="check">✓</span> idempotent ledger + conflict detection + apply step</div>
+
+    <div class="row-label">Health score</div>
+    <div class="cell"><span class="cross">none</span></div>
+    <div class="cell gp"><span class="check">✓</span> 0–100 with letter grade, computed from 5 weighted signals</div>
+
+    <div class="row-label">Adversarial audit</div>
+    <div class="cell"><span class="cross">none</span></div>
+    <div class="cell gp"><span class="check">✓</span> 7 probes → trust signal, deterministic, CI-gateable</div>
+
+    <div class="row-label">Counterfactual change simulation</div>
+    <div class="cell"><span class="cross">none</span></div>
+    <div class="cell gp"><span class="check">✓</span> "what breaks if I delete X?" with severity scoring</div>
+
+    <div class="row-label">Graph diff for code review</div>
+    <div class="cell"><span class="cross">none</span></div>
+    <div class="cell gp"><span class="check">✓</span> markdown / JSON / text + GitHub Action</div>
+
+    <div class="row-label">Self-healing proposals</div>
+    <div class="cell"><span class="cross">none</span></div>
+    <div class="cell gp"><span class="check">✓</span> 5 trigger types + drift tracking + digest</div>
+
+    <div class="row-label">Multi-agent verification voting</div>
+    <div class="cell"><span class="cross">single model</span></div>
+    <div class="cell gp"><span class="check">✓</span> N-model vote-extract → HIGH/DISPUTED/MINORITY edges</div>
+
+    <div class="row-label">Persists enriched graph back to disk</div>
+    <div class="cell"><span class="cross">no</span> — enhancement output is in-memory only</div>
+    <div class="cell gp"><span class="check">✓</span> <code>graph_enhanced.json</code> with <code>_directed</code> flag</div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────── -->
+<!-- Architecture comparison                                          -->
+<!-- ────────────────────────────────────────────────────────────── -->
+<section class="architecture container">
+  <div class="section-label">§ 04 · Pipeline diff</div>
+  <h2 class="section-title">Same plumbing, <em>different evaluation surface.</em></h2>
+
+  <div class="arch-split">
+
+    <div class="arch-card">
+      <div class="card-tag">graphify · upstream</div>
+      <h3>Build &rarr; cluster &rarr; export.<br>One-shot extraction, three artefacts.</h3>
+      <div class="pipeline">
+        <div class="step"><span class="step-num">01</span><span class="step-name">detect()</span></div>
+        <div class="step"><span class="step-num">02</span><span class="step-name">extract()</span></div>
+        <div class="step"><span class="step-num">03</span><span class="step-name">build_graph()</span></div>
+        <div class="step"><span class="step-num">04</span><span class="step-name">cluster()</span></div>
+        <div class="step"><span class="step-num">05</span><span class="step-name">analyze()</span></div>
+        <div class="step"><span class="step-num">06</span><span class="step-name">report()</span></div>
+        <div class="step"><span class="step-num">07</span><span class="step-name">export()</span></div>
+      </div>
+    </div>
+
+    <div class="arch-card gp">
+      <div class="card-tag">graphify-plus · downstream</div>
+      <h3>Read &rarr; enrich &rarr; evaluate &rarr; persist.<br>Adds 7 stages without changing the upstream.</h3>
+      <div class="pipeline">
+        <div class="step"><span class="step-num">01</span><span class="step-name">load(graph.json)</span></div>
+        <div class="step new"><span class="step-num">+</span><span class="step-name">enrich_temporal()</span><span class="step-tag">new</span></div>
+        <div class="step new"><span class="step-num">+</span><span class="step-name">detect_contradictions()</span><span class="step-tag">new</span></div>
+        <div class="step new"><span class="step-num">+</span><span class="step-name">extract_causal_chains()</span><span class="step-tag">opt</span></div>
+        <div class="step new"><span class="step-num">+</span><span class="step-name">reconcile_namespaces()</span><span class="step-tag">new</span></div>
+        <div class="step new"><span class="step-num">+</span><span class="step-name">compute_health_score()</span><span class="step-tag">new</span></div>
+        <div class="step new"><span class="step-num">+</span><span class="step-name">run_audit() · 7 probes</span><span class="step-tag">new</span></div>
+        <div class="step new"><span class="step-num">+</span><span class="step-name">save_enhanced_graph()</span><span class="step-tag">new</span></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────── -->
+<!-- Feature deep-dive                                                -->
+<!-- ────────────────────────────────────────────────────────────── -->
+<section class="features container">
+  <div class="section-label">§ 05 · Feature inventory</div>
+  <h2 class="section-title">Every feature, <em>honestly classified.</em></h2>
+
+  <div class="feature-list">
+
+    <div class="feature">
+      <div class="feature-num">01</div>
+      <div class="feature-content">
+        <h3>Adversarial audit</h3>
+        <p>Seven probes that try to break the graph and report what they find. <strong>Edge deletion stability</strong>, <strong>confidence drift</strong>, <strong>rename sensitivity</strong>, <strong>articulation points</strong>, <strong>lonely INFERRED edges</strong>, <strong>modularity quality</strong>, <strong>centrality drift</strong>. Returns a weighted A–F grade with skipped-probe handling. Deterministic via seed.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge full">production</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>tests</span><span>34</span></div>
+          <div class="meta-row"><span>cli</span><span>✓</span></div>
+          <div class="meta-row"><span>ci-gate</span><span>✓ --fail-below</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">02</div>
+      <div class="feature-content">
+        <h3>Graph diff for code review</h3>
+        <p>Computes a structural diff between two graph snapshots. Detects added/removed nodes with <strong>per-change severity</strong> (LOW→CRITICAL), edge attribute changes, orphaned causal chains, god-node rank changes, contradiction count delta, and health-score delta when both reports are present. Outputs markdown, JSON, or text. Ships with a GitHub Action wrapper.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge full">production</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>tests</span><span>34</span></div>
+          <div class="meta-row"><span>formats</span><span>md · json · txt</span></div>
+          <div class="meta-row"><span>github-action</span><span>✓</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">03</div>
+      <div class="feature-content">
+        <h3>Counterfactual simulation</h3>
+        <p>Answers "what would break if I deleted this node?" by walking dependency relations, identifying broken causal chains, listing affected docs, and scoring severity. Supports <code>delete</code>, <code>rename</code>, <code>deprecate</code>, <code>split</code>, <code>merge</code> change types. Also reverses commits via temporal data.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge full">production</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>tests</span><span>5</span></div>
+          <div class="meta-row"><span>change types</span><span>5</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">04</div>
+      <div class="feature-content">
+        <h3>Multi-agent verification</h3>
+        <p>Run extraction with N different LLMs on the same content. Edges where ≥K models agree are tagged <code>HIGH</code> confidence. Disagreements are tagged <code>DISPUTED</code> with all model opinions attached. Defends against single-model systematic biases.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge full">production</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>tests</span><span>4</span></div>
+          <div class="meta-row"><span>vote classes</span><span>HIGH · DISPUTED · MINORITY</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">05</div>
+      <div class="feature-content">
+        <h3>Self-healing proposals</h3>
+        <p>Periodic background pass that scans for <strong>stale ambiguous flags</strong>, <strong>unresolved contradictions</strong>, <strong>confidence drift over re-extractions</strong>, <strong>orphaned nodes</strong>, and <strong>weak causal edges</strong>. Generates structured correction proposals with priority + suggested actions. Tracks confidence history in JSONL.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge full">production</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>tests</span><span>6</span></div>
+          <div class="meta-row"><span>trigger types</span><span>5</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">06</div>
+      <div class="feature-content">
+        <h3>Multi-modal RAG retrieval</h3>
+        <p>Combines text-graph retrieval with image retrieval. Indexes images, ranks them per-query by filename/path heuristics or CLIP-style embeddings (when caller supplies the encoders). Returns bundled <code>{text_context, images}</code> for the assistant.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge proto">prototype</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>heuristic path</span><span>✓ works</span></div>
+          <div class="meta-row"><span>clip path</span><span>hook only</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">07</div>
+      <div class="feature-content">
+        <h3>Live graph daemon</h3>
+        <p>File-watcher that detects corpus changes, debounces over a configurable window, triggers re-extraction, computes the resulting graph diff, and queues delta events. A real LSP server with subscription protocol is left to a future revision.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge proto">prototype</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>polling</span><span>✓ works</span></div>
+          <div class="meta-row"><span>lsp protocol</span><span>not impl.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">08</div>
+      <div class="feature-content">
+        <h3>Federation coordinator</h3>
+        <p>Member registry + query routing for cross-team graph queries. Each team runs their own graphify-plus instance; the coordinator routes by capability or namespace and merges responses. HTTP transport, auth, and discovery are pluggable.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge proto">prototype</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>routing</span><span>✓ works</span></div>
+          <div class="meta-row"><span>auth/discovery</span><span>hook only</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">09</div>
+      <div class="feature-content">
+        <h3>Local extraction</h3>
+        <p>Replaces remote LLM calls with on-device models. Similarity edges via <code>sentence-transformers</code> (works if installed). Relation extraction via fine-tuned small models — the interface is defined, the actual fine-tuning is left to the user.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge stub">stub</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>similarity edges</span><span>✓ works</span></div>
+          <div class="meta-row"><span>relation extraction</span><span>not impl.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-num">10</div>
+      <div class="feature-content">
+        <h3>Personal knowledge layer</h3>
+        <p>Ingest sources beyond code: notes folder, shell history, browser history, Slack, meetings. Notes &amp; shell history are real implementations. Browser/Slack/meetings are stubs that document the integration paths needed.</p>
+      </div>
+      <div class="feature-status">
+        <span class="status-badge stub">stub</span>
+        <div class="feature-meta">
+          <div class="meta-row"><span>notes / shell</span><span>✓ works</span></div>
+          <div class="meta-row"><span>browser / slack / meetings</span><span>stubs</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────── -->
+<!-- CLI showcase                                                     -->
+<!-- ────────────────────────────────────────────────────────────── -->
+<section class="cli-section container">
+  <div class="section-label">§ 06 · The CLI</div>
+  <h2 class="section-title">Three verbs that <em>graphify doesn't have.</em></h2>
+
+  <div class="terminal">
+    <div class="terminal-header">
+      <span class="term-dot r"></span>
+      <span class="term-dot y"></span>
+      <span class="term-dot g"></span>
+    </div>
+    <div><span class="prompt">$</span> <span class="cmd">graphify-plus audit ./graphify-out/graph_enhanced.json --fail-below B</span></div>
+    <div class="out">Loaded graph: 312 nodes, 891 edges</div>
+    <div class="out">Running audit (iterations=5, seed=42)…</div>
+    <div class="out">─ Adversarial Audit Report ─</div>
+    <div class="out">Graph: 312 nodes, 891 edges (undirected)</div>
+    <div>  <span class="grade">[B]</span> Overall: <span class="grade">B</span> (weighted score 2.85)</div>
+    <div class="out">  1. Edge deletion stability — Grade A</div>
+    <div class="out">  2. Confidence drift           — Grade B (CV=0.18)</div>
+    <div class="out">  3. Rename sensitivity         — Grade A</div>
+    <div class="out">  4. Structural fragility       — Grade C (cuts: 4)</div>
+    <div class="out">  5. Lonely INFERRED edges      — Grade <span class="warn">D</span> (12 of 47)</div>
+    <div class="out">  6. Modularity quality         — Grade A (Q=0.42)</div>
+    <div class="out">  7. Centrality drift           — Grade B</div>
+    <br>
+    <div><span class="prompt">$</span> <span class="cmd">graphify-plus diff old/graph.json new/graph.json --fail-above HIGH</span></div>
+    <div><span class="em">## Graph diff [CRITICAL]</span></div>
+    <div class="out"><strong>312 → 308 nodes</strong> (-4), <strong>891 → 879 edges</strong> (-12)</div>
+    <div class="out"><strong>Health score:</strong> 81 (B) → 73 (B) (-8)</div>
+    <div><span class="warn">### 1 causal chain(s) orphaned</span></div>
+    <div class="out">- `OAuth2Migration` -[caused_by]-&gt; `legacy_auth_check`</div>
+    <div><span class="warn">### - 4 node(s) removed</span></div>
+    <div class="out">- `legacy_auth_check` (was 8°) [<span class="warn">CRITICAL</span>]</div>
+    <div class="out">- `deprecated_token_cache` (was 5°) [HIGH]</div>
+    <div class="out">- `unused_helper` (was 1°) [LOW]</div>
+    <div class="warn">FAIL: severity CRITICAL exceeds threshold HIGH</div>
+    <div class="out">→ exit code 1 (CI gates the PR)</div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────── -->
+<!-- Conclusion                                                       -->
+<!-- ────────────────────────────────────────────────────────────── -->
+<section class="conclusion container">
+  <p class="conclusion-quote">
+    graphify says <em>"here is your graph."</em><br>
+    graphify-plus says <em>"here is what you should not trust about your graph,</em><br>
+    and what would happen if you changed any part of it."
+  </p>
+  <div class="footer-meta">
+    <span>graphify-plus v3.1 · 7,466 LOC · 172 tests</span>
+    <span>built on top of graphify v0.5+</span>
+  </div>
+</section>
+
+<script>
+  // Lightweight scroll-reveal — adds .visible to elements as they enter view.
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -50px 0px' });
+
+  // Mark section children as reveal targets, with staggered delays
+  document.querySelectorAll('.stat, .feature, .arch-card, .lineage-diagram, .comparison-grid, .terminal').forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = `${(i % 4) * 0.08}s`;
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>
