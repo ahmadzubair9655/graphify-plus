@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "graphify-plus"
+version = "3.1.0"
+description = "Drop-in enhancement layer for graphify with adversarial audit, graph diff for code review, contradiction detection, causal chains, health scoring, MCP write-back, and cross-repo reconciliation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["graphify", "knowledge-graph", "claude", "code-analysis", "audit", "diff"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "networkx>=3.0",
+]
+
+[project.optional-dependencies]
+full = [
+    "graphifyy>=0.5.0",
+]
+embeddings = [
+    "sentence-transformers>=2.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[project.scripts]
+graphify-plus = "graphify_plus.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["graphify_plus"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

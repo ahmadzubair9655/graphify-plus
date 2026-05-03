@@ -1,0 +1,91 @@
+name: graph-diff
+
+on:
+  pull_request:
+    paths:
+      - "**/*.py"
+      - "**/*.ts"
+      - "**/*.js"
+      - "**/*.go"
+      - "**/*.rs"
+      - "docs/**"
+      - "**/*.md"
+
+jobs:
+  graph-diff:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install graphify and graphify-plus
+        run: |
+          pip install graphifyy graphify-plus
+
+      - name: Build graph for PR HEAD
+        run: |
+          graphify . || true
+          mkdir -p .graphify-pr-new
+          cp -r graphify-out/* .graphify-pr-new/ 2>/dev/null || true
+          test -f .graphify-pr-new/graph.json || (echo "no graph generated" && exit 0)
+
+      - name: Checkout base branch
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+          rm -rf graphify-out
+
+      - name: Build graph for base
+        run: |
+          graphify . || true
+          mkdir -p .graphify-pr-old
+          cp -r graphify-out/* .graphify-pr-old/ 2>/dev/null || true
+          test -f .graphify-pr-old/graph.json || (echo "no base graph" && exit 0)
+
+      - name: Compute graph diff
+        id: diff
+        run: |
+          graphify-plus diff \
+            .graphify-pr-old/graph.json \
+            .graphify-pr-new/graph.json \
+            --old-report .graphify-pr-old/report.json \
+            --new-report .graphify-pr-new/report.json \
+            --format markdown \
+            --output diff-comment.md \
+            --fail-above HIGH || echo "DIFF_FAILED=true" >> $GITHUB_ENV
+          {
+            echo 'COMMENT<<EOF'
+            cat diff-comment.md
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('diff-comment.md')) return;
+            const body = fs.readFileSync('diff-comment.md', 'utf8');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });
+
+      - name: Fail if diff exceeded threshold
+        if: env.DIFF_FAILED == 'true'
+        run: |
+          echo "::error::Graph diff exceeded HIGH severity threshold"
+          exit 1
