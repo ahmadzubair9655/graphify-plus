@@ -16,10 +16,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 import click
+
+from graphify_plus.interface.errors import GraphifyError
 
 
 def _load_graph(path: Path):
@@ -95,6 +98,27 @@ def main(argv: list[str] | None = None) -> int:
         print(__doc__)
         return 0
     cmd, rest = argv[0], argv[1:]
+    # Phase 11: structured error handling. --debug flag (or GP_DEBUG=1) flips
+    # full traceback printing; otherwise stderr stays clean and the trace
+    # lands in <repo>/.graphify_plus/debug.log.
+    debug = "--debug" in rest or os.environ.get("GP_DEBUG") == "1"
+    if "--debug" in rest:
+        rest = [a for a in rest if a != "--debug"]
+    try:
+        return _dispatch(cmd, rest)
+    except GraphifyError as err:
+        from graphify_plus.interface.errors import handle as _handle_err
+
+        return _handle_err(err, debug=debug)
+    except KeyboardInterrupt:
+        return 130
+    except Exception as err:  # noqa: BLE001 — top-level safety net
+        from graphify_plus.interface.errors import handle as _handle_err
+
+        return _handle_err(err, debug=debug)
+
+
+def _dispatch(cmd: str, rest: list[str]) -> int:
 
     if cmd == "audit":
         from graphify_plus.audit.cli import main as audit_main
@@ -114,6 +138,18 @@ def main(argv: list[str] | None = None) -> int:
             init_cmd.main(args=rest, prog_name="graphify-plus init", standalone_mode=False)
         except SystemExit as e:
             return int(e.code or 0)
+        return 0
+
+    if cmd == "doctor":
+        from graphify_plus.interface.cli.doctor_cmd import doctor_cmd
+
+        try:
+            doctor_cmd.main(args=rest, prog_name="graphify-plus doctor", standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
         return 0
 
     if cmd == "claude-md":
