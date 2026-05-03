@@ -577,13 +577,13 @@ def probe_unresolved_imports(G: nx.Graph) -> dict:
     if not ok:
         return {"skipped": True, "reason": reason}
     total = 0
-    unresolved = 0
-    for _u, _v, data in G.edges(data=True):
+    unresolved_edges: list[tuple[str, str, str]] = []
+    for u, v, data in G.edges(data=True):
         if data.get("kind") != "imports":
             continue
         total += 1
         if not data.get("resolved"):
-            unresolved += 1
+            unresolved_edges.append((str(u), str(v), "imports"))
     if total == 0:
         return {
             "skipped": False,
@@ -592,18 +592,20 @@ def probe_unresolved_imports(G: nx.Graph) -> dict:
             "unresolved_pct": 0.0,
             "unresolved_imports_grade": "N/A",
             "interpretation": "no imports edges in graph",
+            "contributing_edges": [],
         }
-    ratio = unresolved / total
+    ratio = len(unresolved_edges) / total
     grade = _grade_from_numeric(1.0 - ratio, thresholds=(0.9, 0.75, 0.5, 0.3))
     return {
         "skipped": False,
         "total_imports": total,
-        "unresolved_count": unresolved,
+        "unresolved_count": len(unresolved_edges),
         "unresolved_pct": round(ratio * 100, 2),
         "unresolved_imports_grade": grade,
         "interpretation": (
-            f"{unresolved} of {total} imports edges are unresolved heuristics."
+            f"{len(unresolved_edges)} of {total} imports edges are unresolved heuristics."
         ),
+        "contributing_edges": unresolved_edges,
     }
 
 
@@ -660,14 +662,14 @@ def probe_low_confidence_ratio(G: nx.Graph, threshold: float = 0.7) -> dict:
     if not ok:
         return {"skipped": True, "reason": reason}
     total = 0
-    low = 0
-    for _u, _v, data in G.edges(data=True):
+    low_edges: list[tuple[str, str, str]] = []
+    for u, v, data in G.edges(data=True):
         c = data.get("confidence")
         if not isinstance(c, (int, float)):
             continue
         total += 1
         if c < threshold:
-            low += 1
+            low_edges.append((str(u), str(v), str(data.get("kind") or "")))
     if total == 0:
         return {
             "skipped": False,
@@ -676,18 +678,18 @@ def probe_low_confidence_ratio(G: nx.Graph, threshold: float = 0.7) -> dict:
             "low_confidence_pct": 0.0,
             "low_confidence_grade": "N/A",
             "interpretation": "no edges carry confidence values",
+            "contributing_edges": [],
         }
-    ratio = low / total
+    ratio = len(low_edges) / total
     grade = _grade_from_numeric(1.0 - ratio, thresholds=(0.85, 0.7, 0.5, 0.3))
     return {
         "skipped": False,
         "total_edges_with_confidence": total,
-        "low_confidence_count": low,
+        "low_confidence_count": len(low_edges),
         "low_confidence_pct": round(ratio * 100, 2),
         "low_confidence_grade": grade,
-        "interpretation": (
-            f"{low} of {total} edges have confidence < {threshold}."
-        ),
+        "interpretation": (f"{len(low_edges)} of {total} edges have confidence < {threshold}."),
+        "contributing_edges": low_edges,
     }
 
 
