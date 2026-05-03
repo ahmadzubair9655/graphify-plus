@@ -22,6 +22,7 @@ import networkx as nx
 from ...core.symbol_graph import build as build_graph
 from ...query.budget import frame_to_budget
 from ...query.partition import compute_partition
+from ...query.prune import report as prune_report
 from ...runtime.store import Store, cache_path
 
 
@@ -71,8 +72,24 @@ def _resolve_target(store: Store, target: str) -> str:
 @click.option("--target", type=str, required=True, help="Symbol name, qualified name, or id.")
 @click.option("--max-tokens", "max_tokens", type=int, default=4000)
 @click.option("--json-manifest", is_flag=True, help="Append a JSON manifest after the context.")
+@click.option(
+    "--apply-prune",
+    is_flag=True,
+    help="Exclude dead-code + orphan symbols from the framed context.",
+)
+@click.option(
+    "--aggressive-prune",
+    is_flag=True,
+    help="Implies --apply-prune; also excludes deprecated symbols.",
+)
 def context_cmd(
-    repo: Path, entry: str | None, target: str, max_tokens: int, json_manifest: bool
+    repo: Path,
+    entry: str | None,
+    target: str,
+    max_tokens: int,
+    json_manifest: bool,
+    apply_prune: bool,
+    aggressive_prune: bool,
 ) -> None:
     """Print a token-budgeted slice of the symbol graph."""
     repo = repo.resolve()
@@ -93,7 +110,10 @@ def context_cmd(
             raise click.ClickException(
                 f"No path from {entry_id} to {target_id}. Try a different entry."
             ) from None
-        framed = frame_to_budget(partition, store, max_tokens=max_tokens)
+        excl: set[str] = set()
+        if apply_prune or aggressive_prune:
+            excl = prune_report(G).all_ids(aggressive=aggressive_prune)
+        framed = frame_to_budget(partition, store, max_tokens=max_tokens, exclude=excl)
         click.echo(framed.text.rstrip("\n"))
         if json_manifest:
             click.echo(
