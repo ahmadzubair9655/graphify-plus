@@ -12,7 +12,7 @@ from pathlib import Path
 
 from tree_sitter_languages import get_parser  # type: ignore[import-untyped]
 
-from .base import Edge, Symbol, make_symbol_id
+from .base import CONF_EXACT, CONF_FALLBACK, Edge, Symbol, make_symbol_id
 
 
 def _text(node, source: bytes) -> str:
@@ -93,6 +93,7 @@ def parse_generic(spec: LangSpec, path: Path, source: bytes) -> tuple[list[Symbo
                     kind="imports",
                     resolved=False,
                     span=(node.start_point[0] + 1, node.end_point[0] + 1),
+                    confidence=CONF_FALLBACK,
                 )
             )
             return
@@ -121,7 +122,14 @@ def parse_generic(spec: LangSpec, path: Path, source: bytes) -> tuple[list[Symbo
                 )
                 if parent_id is not None:
                     edges.append(
-                        Edge(src=parent_id, dst=sid, kind="contains", resolved=True, span=None)
+                        Edge(
+                            src=parent_id,
+                            dst=sid,
+                            kind="contains",
+                            resolved=True,
+                            span=None,
+                            confidence=CONF_EXACT,
+                        )
                     )
                 # recurse into class-likes for methods
                 if kind == "class":

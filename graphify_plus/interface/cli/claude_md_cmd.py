@@ -30,7 +30,7 @@ from ...runtime.store import Store, cache_path
 
 START_MARKER = "<!-- graphify-plus:start -->"
 END_MARKER = "<!-- graphify-plus:end -->"
-TEMPLATE_VERSION = 1
+TEMPLATE_VERSION = 2
 
 
 def _detect_stack(symbols) -> list[str]:
@@ -108,6 +108,16 @@ def render_section(repo: Path) -> str:
         "never into the graphify-plus tool's own source tree."
     )
     lines.append("")
+    lines.extend(
+        [
+            "### Edge confidence",
+            "",
+            "When confidence < 0.7 on any edge in your context output, verify by "
+            "reading the source file directly before relying on it. Low-confidence "
+            "edges are heuristic guesses, not facts.",
+            "",
+        ]
+    )
     lines.append(END_MARKER)
     return "\n".join(lines) + "\n"
 

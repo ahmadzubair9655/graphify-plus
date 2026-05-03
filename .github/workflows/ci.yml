@@ -28,8 +28,8 @@ jobs:
         # out of Phase 0 scope and will be brought under lint as later
         # phases refactor them.
         run: |
-          ruff check graphify_plus/core graphify_plus/runtime graphify_plus/interface graphify_plus/query scripts tests/core tests/runtime tests/interface tests/query
-          ruff format --check graphify_plus/core graphify_plus/runtime graphify_plus/interface graphify_plus/query scripts tests/core tests/runtime tests/interface tests/query
+          ruff check graphify_plus/core graphify_plus/runtime graphify_plus/interface graphify_plus/query scripts tests/core tests/runtime tests/interface tests/query tests/regression tests/scripts
+          ruff format --check graphify_plus/core graphify_plus/runtime graphify_plus/interface graphify_plus/query scripts tests/core tests/runtime tests/interface tests/query tests/regression tests/scripts
       - name: Type check
         run: mypy graphify_plus
         continue-on-error: true   # tighten in later phases
@@ -40,5 +40,11 @@ jobs:
           python -m graphify_plus init --repo tests/fixtures/sample_repo --print > /tmp/a.jsonl
           python -m graphify_plus init --repo tests/fixtures/sample_repo --print > /tmp/b.jsonl
           cmp /tmp/a.jsonl /tmp/b.jsonl
+      - name: Doc verification (informational)
+        # README contains many illustrative blocks that aren't designed
+        # to run end-to-end. Until they are audited and either skipped
+        # via <!-- doctest:skip --> or made self-contained, this job
+        # surfaces results without blocking CI.
+        run: python scripts/test_readme.py || true
       - name: Perf baseline
         run: python scripts/perf_bench.py --baseline

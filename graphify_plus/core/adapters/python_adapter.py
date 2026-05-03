@@ -8,7 +8,15 @@ from typing import ClassVar
 # tree_sitter_languages is the bundled-grammar shim.
 from tree_sitter_languages import get_parser  # type: ignore[import-untyped]
 
-from .base import Edge, LangAdapter, Symbol, make_symbol_id
+from .base import (
+    CONF_EXACT,
+    CONF_FALLBACK,
+    CONF_RESOLVED,
+    Edge,
+    LangAdapter,
+    Symbol,
+    make_symbol_id,
+)
 
 
 def _text(node, source: bytes) -> str:
@@ -122,7 +130,14 @@ class PythonAdapter:
                 )
                 if parent_id is not None:
                     edges.append(
-                        Edge(src=parent_id, dst=sid, kind="contains", resolved=True, span=None)
+                        Edge(
+                            src=parent_id,
+                            dst=sid,
+                            kind="contains",
+                            resolved=True,
+                            span=None,
+                            confidence=CONF_EXACT,
+                        )
                     )
                 # walk body for calls
                 _collect_calls(body, sid)
@@ -163,10 +178,26 @@ class PythonAdapter:
                 )
                 if parent_id is not None:
                     edges.append(
-                        Edge(src=parent_id, dst=cid, kind="contains", resolved=True, span=None)
+                        Edge(
+                            src=parent_id,
+                            dst=cid,
+                            kind="contains",
+                            resolved=True,
+                            span=None,
+                            confidence=CONF_EXACT,
+                        )
                     )
                 for base in base_strs:
-                    edges.append(Edge(src=cid, dst=base, kind="extends", resolved=False, span=None))
+                    edges.append(
+                        Edge(
+                            src=cid,
+                            dst=base,
+                            kind="extends",
+                            resolved=False,
+                            span=None,
+                            confidence=CONF_FALLBACK,
+                        )
+                    )
                 if body is not None:
                     for ch in body.children:
                         walk(ch, qname, cid)
@@ -181,6 +212,7 @@ class PythonAdapter:
                         kind="imports",
                         resolved=False,
                         span=(node.start_point[0] + 1, node.end_point[0] + 1),
+                        confidence=CONF_FALLBACK,
                     )
                 )
                 return
@@ -229,6 +261,7 @@ class PythonAdapter:
                                 kind="calls",
                                 resolved=False,
                                 span=(n.start_point[0] + 1, n.end_point[0] + 1),
+                                confidence=CONF_FALLBACK,
                             )
                         )
                 for ch in n.children:
@@ -245,7 +278,14 @@ class PythonAdapter:
                 if sym["name"] in all_exports:
                     sym["exported"] = True
                     edges.append(
-                        Edge(src=module_id, dst=sym["id"], kind="exports", resolved=True, span=None)
+                        Edge(
+                            src=module_id,
+                            dst=sym["id"],
+                            kind="exports",
+                            resolved=True,
+                            span=None,
+                            confidence=CONF_RESOLVED,
+                        )
                     )
 
         # Deterministic sort
