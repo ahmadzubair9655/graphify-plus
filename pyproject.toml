@@ -21,6 +21,8 @@ classifiers = [
 
 dependencies = [
     "networkx>=3.0",
+    "numpy>=1.24",  # required by networkx centrality probes
+    "scipy>=1.10",  # required by networkx pagerank
     "click>=8.1",
     "rich>=13.7",
     "pydantic>=2.6",
