@@ -8,6 +8,7 @@ graphify itself emits (``nodes`` + ``edges`` lists). The full enhanced report
 (`report.json` with health score) is part of the v2 enhance pipeline that
 isn't yet shipped — this shim covers the part the v3 modules need.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,7 +29,9 @@ def graph_to_dict(G: nx.Graph) -> dict[str, Any]:
     return {"nodes": nodes, "edges": edges}
 
 
-def save_enhanced_graph(G: nx.Graph, out_dir: str | Path, filename: str = "graph_enhanced.json") -> Path:
+def save_enhanced_graph(
+    G: nx.Graph, out_dir: str | Path, filename: str = "graph_enhanced.json"
+) -> Path:
     """Write the graph to ``{out_dir}/{filename}`` and return the path written."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

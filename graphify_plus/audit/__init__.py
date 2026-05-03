@@ -1,4 +1,5 @@
 """graphify_plus.audit — adversarial probes that grade graph quality."""
+
 from graphify_plus.audit.cli import main as cli_main  # noqa: F401
 from graphify_plus.audit.probe import (  # noqa: F401
     audit_meets_threshold,

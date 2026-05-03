@@ -35,19 +35,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("old", help="Path to old graph.json")
     parser.add_argument("new", help="Path to new graph.json")
     parser.add_argument(
-        "--format", choices=["markdown", "json", "text"], default="markdown",
+        "--format",
+        choices=["markdown", "json", "text"],
+        default="markdown",
     )
     parser.add_argument("--output", "-o", metavar="PATH", help="Write to file")
     parser.add_argument(
-        "--old-report", metavar="PATH",
+        "--old-report",
+        metavar="PATH",
         help="Path to old report.json (for health-score delta)",
     )
     parser.add_argument(
-        "--new-report", metavar="PATH",
+        "--new-report",
+        metavar="PATH",
         help="Path to new report.json (for health-score delta)",
     )
     parser.add_argument(
-        "--fail-above", choices=SEVERITY_LEVELS, default=None,
+        "--fail-above",
+        choices=SEVERITY_LEVELS,
+        default=None,
         help="Exit non-zero if overall severity is above this threshold",
     )
     parser.add_argument("--max-items", type=int, default=5)
@@ -66,7 +72,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         diff = diff_graphs(
-            old=old_path, new=new_path,
+            old=old_path,
+            new=new_path,
             old_report=Path(args.old_report) if args.old_report else None,
             new_report=Path(args.new_report) if args.new_report else None,
         )

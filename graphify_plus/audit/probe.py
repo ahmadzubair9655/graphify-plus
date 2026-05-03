@@ -25,7 +25,12 @@ import networkx as nx
 GradeStr = str  # "A" | "B" | "C" | "D" | "F" | "N/A"
 
 _GRADE_TO_NUMERIC: dict[GradeStr, int] = {
-    "A": 4, "B": 3, "C": 2, "D": 1, "F": 0, "N/A": -1,
+    "A": 4,
+    "B": 3,
+    "C": 2,
+    "D": 1,
+    "F": 0,
+    "N/A": -1,
 }
 
 _DEFAULT_TOP_K = 15
@@ -35,6 +40,7 @@ _DEFAULT_SAMPLE_SEED = 42
 # ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------
+
 
 def _validate_graph(G: Any) -> tuple[bool, str]:
     """Return (ok, reason). Every probe calls this first."""
@@ -73,6 +79,7 @@ def _grade_from_numeric(score: float, thresholds: tuple = (0.9, 0.75, 0.6, 0.4))
 # Community helpers
 # ---------------------------------------------------------------------------
 
+
 def _community_set(G: nx.Graph) -> dict[Any, set]:
     out: dict[Any, set] = {}
     for nid, data in G.nodes(data=True):
@@ -105,6 +112,7 @@ def _community_overlap(a: dict[Any, set], b: dict[Any, set]) -> float:
 # ---------------------------------------------------------------------------
 # Probe 1: edge deletion stability
 # ---------------------------------------------------------------------------
+
 
 def probe_edge_deletion_stability(
     G: nx.Graph,
@@ -151,8 +159,8 @@ def probe_edge_deletion_stability(
         "max_overlap": round(max(overlaps), 4),
         "stability_grade": _grade_from_numeric(avg),
         "interpretation": (
-            f"After deleting {int(deletion_rate*100)}% of edges across {iterations} runs, "
-            f"{int(avg*100)}% of community structure was preserved on average."
+            f"After deleting {int(deletion_rate * 100)}% of edges across {iterations} runs, "
+            f"{int(avg * 100)}% of community structure was preserved on average."
         ),
     }
 
@@ -160,6 +168,7 @@ def probe_edge_deletion_stability(
 # ---------------------------------------------------------------------------
 # Probe 2: confidence drift
 # ---------------------------------------------------------------------------
+
 
 def probe_confidence_drift(G: nx.Graph) -> dict:
     ok, reason = _validate_graph(G)
@@ -175,7 +184,10 @@ def probe_confidence_drift(G: nx.Graph) -> dict:
             scores.append(float(s))
 
     if len(scores) < 3:
-        return {"skipped": True, "reason": f"need >=3 INFERRED edges with confidence_score (got {len(scores)})"}
+        return {
+            "skipped": True,
+            "reason": f"need >=3 INFERRED edges with confidence_score (got {len(scores)})",
+        }
 
     n = len(scores)
     mean = sum(scores) / n
@@ -196,10 +208,13 @@ def probe_confidence_drift(G: nx.Graph) -> dict:
         "drift_grade": _grade_from_numeric(grade_score),
         "interpretation": (
             f"INFERRED edges have mean confidence {mean:.2f} +/- {stddev:.2f} "
-            f"(CV={cv:.2f}). " + (
-                "Model is consistent." if cv < 0.15 else
-                "Some inconsistency in model confidence." if cv < 0.30 else
-                "High uncertainty - consider re-running extraction."
+            f"(CV={cv:.2f}). "
+            + (
+                "Model is consistent."
+                if cv < 0.15
+                else "Some inconsistency in model confidence."
+                if cv < 0.30
+                else "High uncertainty - consider re-running extraction."
             )
         ),
     }
@@ -208,6 +223,7 @@ def probe_confidence_drift(G: nx.Graph) -> dict:
 # ---------------------------------------------------------------------------
 # Probe 3: rename sensitivity
 # ---------------------------------------------------------------------------
+
 
 def probe_rename_sensitivity(
     G: nx.Graph,
@@ -244,13 +260,15 @@ def probe_rename_sensitivity(
                 ref_count += 1
 
         if ref_count > 0:
-            fragile_nodes.append({
-                "id": str(nid),
-                "label": label,
-                "degree": deg,
-                "label_referencing_edges": ref_count,
-                "fragility_pct": round(ref_count / max(deg, 1) * 100, 1),
-            })
+            fragile_nodes.append(
+                {
+                    "id": str(nid),
+                    "label": label,
+                    "degree": deg,
+                    "label_referencing_edges": ref_count,
+                    "fragility_pct": round(ref_count / max(deg, 1) * 100, 1),
+                }
+            )
 
     fragile_nodes.sort(key=lambda x: x["fragility_pct"], reverse=True)
 
@@ -274,6 +292,7 @@ def probe_rename_sensitivity(
 # ---------------------------------------------------------------------------
 # Probe 4: structural fragility
 # ---------------------------------------------------------------------------
+
 
 def probe_structural_fragility(G: nx.Graph, top_k: int = 15) -> dict:
     ok, reason = _validate_graph(G)
@@ -299,12 +318,14 @@ def probe_structural_fragility(G: nx.Graph, top_k: int = 15) -> dict:
 
     points = []
     for nid in cuts:
-        points.append({
-            "id": str(nid),
-            "label": _safe_node_label(G, nid),
-            "degree": G.degree(nid),
-            "source_file": str(G.nodes[nid].get("source_file", "")) if G.has_node(nid) else "",
-        })
+        points.append(
+            {
+                "id": str(nid),
+                "label": _safe_node_label(G, nid),
+                "degree": G.degree(nid),
+                "source_file": str(G.nodes[nid].get("source_file", "")) if G.has_node(nid) else "",
+            }
+        )
     points.sort(key=lambda x: x["degree"], reverse=True)
 
     cut_ratio = len(cuts) / H.number_of_nodes() if H.number_of_nodes() else 0
@@ -317,10 +338,13 @@ def probe_structural_fragility(G: nx.Graph, top_k: int = 15) -> dict:
         "articulation_points": points[:top_k],
         "structural_grade": grade,
         "interpretation": (
-            f"{len(cuts)} cut vertices ({cut_ratio*100:.1f}% of nodes). " + (
-                "Few bottlenecks - graph is robust." if cut_ratio < 0.05 else
-                "Moderate bottlenecks." if cut_ratio < 0.15 else
-                "Many bottlenecks - consider adding redundant edges."
+            f"{len(cuts)} cut vertices ({cut_ratio * 100:.1f}% of nodes). "
+            + (
+                "Few bottlenecks - graph is robust."
+                if cut_ratio < 0.05
+                else "Moderate bottlenecks."
+                if cut_ratio < 0.15
+                else "Many bottlenecks - consider adding redundant edges."
             )
         ),
     }
@@ -329,6 +353,7 @@ def probe_structural_fragility(G: nx.Graph, top_k: int = 15) -> dict:
 # ---------------------------------------------------------------------------
 # Probe 5: lonely INFERRED edges
 # ---------------------------------------------------------------------------
+
 
 def probe_lonely_inferred_edges(
     G: nx.Graph,
@@ -361,14 +386,16 @@ def probe_lonely_inferred_edges(
         v_n.discard(u)
 
         if not (u_n & v_n):
-            lonely.append({
-                "source": str(u),
-                "target": str(v),
-                "source_label": _safe_node_label(G, u),
-                "target_label": _safe_node_label(G, v),
-                "relation": str(data.get("relation", "")),
-                "confidence_score": float(score) if isinstance(score, (int, float)) else None,
-            })
+            lonely.append(
+                {
+                    "source": str(u),
+                    "target": str(v),
+                    "source_label": _safe_node_label(G, u),
+                    "target_label": _safe_node_label(G, v),
+                    "relation": str(data.get("relation", "")),
+                    "confidence_score": float(score) if isinstance(score, (int, float)) else None,
+                }
+            )
 
     lonely.sort(key=lambda x: x.get("confidence_score") or 0.0)
 
@@ -395,6 +422,7 @@ def probe_lonely_inferred_edges(
 # ---------------------------------------------------------------------------
 # Probe 6: modularity quality
 # ---------------------------------------------------------------------------
+
 
 def probe_modularity_quality(G: nx.Graph) -> dict:
     ok, reason = _validate_graph(G)
@@ -436,11 +464,15 @@ def probe_modularity_quality(G: nx.Graph) -> dict:
         "community_count": len(communities),
         "modularity_grade": grade,
         "interpretation": (
-            f"Modularity Q={Q:.3f}. " + (
-                "Strong community structure." if Q >= 0.4 else
-                "Moderate community structure." if Q >= 0.3 else
-                "Weak community structure - partition may not reflect real groupings." if Q >= 0.0 else
-                "Worse than random - partition is wrong."
+            f"Modularity Q={Q:.3f}. "
+            + (
+                "Strong community structure."
+                if Q >= 0.4
+                else "Moderate community structure."
+                if Q >= 0.3
+                else "Weak community structure - partition may not reflect real groupings."
+                if Q >= 0.0
+                else "Worse than random - partition is wrong."
             )
         ),
     }
@@ -449,6 +481,7 @@ def probe_modularity_quality(G: nx.Graph) -> dict:
 # ---------------------------------------------------------------------------
 # Probe 7: centrality drift
 # ---------------------------------------------------------------------------
+
 
 def probe_centrality_drift(G: nx.Graph, top_k: int = 10) -> dict:
     ok, reason = _validate_graph(G)
@@ -512,12 +545,18 @@ def probe_centrality_drift(G: nx.Graph, top_k: int = 10) -> dict:
         "avg_overlap": round(avg_overlap, 4) if avg_overlap is not None else None,
         "centrality_grade": grade,
         "interpretation": (
-            f"Top-{top_k} agreement across centrality metrics: " + (
-                f"{int(avg_overlap*100)}% - " + (
-                    "metrics agree, god nodes are robust." if avg_overlap >= 0.7 else
-                    "moderate agreement - some metric-dependence." if avg_overlap >= 0.4 else
-                    "metrics disagree - be skeptical of single-metric god-node lists."
-                ) if avg_overlap is not None else "could not compute"
+            f"Top-{top_k} agreement across centrality metrics: "
+            + (
+                f"{int(avg_overlap * 100)}% - "
+                + (
+                    "metrics agree, god nodes are robust."
+                    if avg_overlap >= 0.7
+                    else "moderate agreement - some metric-dependence."
+                    if avg_overlap >= 0.4
+                    else "metrics disagree - be skeptical of single-metric god-node lists."
+                )
+                if avg_overlap is not None
+                else "could not compute"
             )
         ),
     }
@@ -526,6 +565,7 @@ def probe_centrality_drift(G: nx.Graph, top_k: int = 10) -> dict:
 # ---------------------------------------------------------------------------
 # Audit aggregation
 # ---------------------------------------------------------------------------
+
 
 def _aggregate_grade(probe_results: dict[str, dict]) -> dict:
     grade_keys = [
@@ -597,7 +637,10 @@ def run_audit(
 
     all_probes = {
         "edge_deletion_stability": lambda: probe_edge_deletion_stability(
-            G, deletion_rate=deletion_rate, iterations=iterations, seed=seed,
+            G,
+            deletion_rate=deletion_rate,
+            iterations=iterations,
+            seed=seed,
         ),
         "confidence_drift": lambda: probe_confidence_drift(G),
         "rename_sensitivity": lambda: probe_rename_sensitivity(G),
@@ -644,6 +687,7 @@ def run_audit(
 # Renderers and CI helpers
 # ---------------------------------------------------------------------------
 
+
 def format_audit_report(audit: dict) -> str:
     if audit.get("skipped"):
         return f"# Audit\n\nSkipped: {audit.get('reason', 'unknown')}\n"
@@ -658,18 +702,22 @@ def format_audit_report(audit: dict) -> str:
 
     overall = audit.get("overall_grade", "N/A")
     score = audit.get("weighted_score")
-    grade_emoji = {"A": "[A]", "B": "[B]", "C": "[C]", "D": "[D]", "F": "[F]", "N/A": "[?]"}.get(overall, "[?]")
-    lines.append(f"## {grade_emoji} Overall: **{overall}** "
-                 f"({f'weighted score {score}' if score is not None else 'no scoreable probes'})\n")
+    grade_emoji = {"A": "[A]", "B": "[B]", "C": "[C]", "D": "[D]", "F": "[F]", "N/A": "[?]"}.get(
+        overall, "[?]"
+    )
+    lines.append(
+        f"## {grade_emoji} Overall: **{overall}** "
+        f"({f'weighted score {score}' if score is not None else 'no scoreable probes'})\n"
+    )
 
     sections = [
         ("edge_deletion_stability", "1. Edge deletion stability", "stability_grade"),
-        ("confidence_drift",        "2. Confidence drift",         "drift_grade"),
-        ("rename_sensitivity",      "3. Rename sensitivity",       "rename_grade"),
-        ("structural_fragility",    "4. Structural fragility",     "structural_grade"),
-        ("lonely_inferred_edges",   "5. Lonely INFERRED edges",    "lonely_grade"),
-        ("modularity_quality",      "6. Modularity quality",       "modularity_grade"),
-        ("centrality_drift",        "7. Centrality drift",         "centrality_grade"),
+        ("confidence_drift", "2. Confidence drift", "drift_grade"),
+        ("rename_sensitivity", "3. Rename sensitivity", "rename_grade"),
+        ("structural_fragility", "4. Structural fragility", "structural_grade"),
+        ("lonely_inferred_edges", "5. Lonely INFERRED edges", "lonely_grade"),
+        ("modularity_quality", "6. Modularity quality", "modularity_grade"),
+        ("centrality_drift", "7. Centrality drift", "centrality_grade"),
     ]
 
     for key, title, grade_field in sections:
@@ -694,7 +742,9 @@ def format_audit_report(audit: dict) -> str:
                 lines.append(f"- **{p['label']}** ({p['degree']} deg)")
         elif key == "lonely_inferred_edges":
             for e in result.get("lonely_edges", [])[:5]:
-                score_s = f"{e['confidence_score']:.2f}" if e.get('confidence_score') is not None else "?"
+                score_s = (
+                    f"{e['confidence_score']:.2f}" if e.get("confidence_score") is not None else "?"
+                )
                 lines.append(
                     f"- {e['source_label']} -[{e['relation']}]-> {e['target_label']} "
                     f"(score: {score_s})"

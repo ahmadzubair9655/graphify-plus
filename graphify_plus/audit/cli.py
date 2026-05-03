@@ -7,6 +7,7 @@ Usage:
     graphify-plus audit path/to/graph.json --only confidence_drift
     graphify-plus audit path/to/graph.json --fail-below B --quiet
 """
+
 from __future__ import annotations
 
 import argparse
@@ -80,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=None,
         help="Run only the named probe(s). Repeat for multiple. "
-             "When set, output JSON contains only those probes.",
+        "When set, output JSON contains only those probes.",
     )
     parser.add_argument("--quiet", action="store_true", help="Suppress text report on stdout")
 
