@@ -108,6 +108,30 @@ def main(argv: list[str] | None = None) -> int:
             return int(e.code or 0)
         return 0
 
+    if cmd == "watch":
+        from graphify_plus.interface.cli.watch_cmd import watch_cmd
+        try:
+            watch_cmd.main(args=rest, prog_name="graphify-plus watch",
+                           standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
+    if cmd == "session":
+        from graphify_plus.interface.cli.session_cmd import session_cmd
+        try:
+            session_cmd.main(args=rest, prog_name="graphify-plus session",
+                             standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
     if cmd == "skeleton":
         from graphify_plus.interface.cli.skeleton_cmd import skeleton_cmd
         try:
