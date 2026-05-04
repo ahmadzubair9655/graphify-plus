@@ -2,6 +2,21 @@
 
 All notable changes to graphify-plus.
 
+## Unreleased
+
+### New
+
+- **JSX-internal symbol tracing** (`core/adapters/_ts_common.py`). The TS/JS
+  adapter now does a second pass over `.tsx`/`.jsx` files (and any `.ts`/`.js`
+  file containing JSX), resolving `<Component />` references to function or
+  component declarations in the same file. Resolved references are emitted as
+  `jsx_render` edges, which `gp prune` counts as inbound liveness evidence.
+  The walker also descends into function bodies so nested local components
+  become symbols. Patterns covered: simple identifier (`<Foo/>`), member
+  expression (`<Card.Header/>`), arrow-function components, and components
+  declared inside another component's body. Host elements (`<div/>`,
+  `<svg/>`) are filtered out.
+
 ## v4.1.0 — Resilience Foundation
 
 Phase 11 (foundation block) of RESILIENCE_PLAN.md. Items 11.2 / 11.5 /

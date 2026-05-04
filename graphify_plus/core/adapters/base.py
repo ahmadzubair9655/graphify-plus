@@ -32,6 +32,7 @@ EdgeKind = Literal[
     "references",
     "exports",
     "contains",
+    "jsx_render",
 ]
 
 

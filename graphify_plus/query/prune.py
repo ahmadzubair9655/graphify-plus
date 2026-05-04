@@ -25,8 +25,8 @@ from ..core.adapters import Symbol
 DEPRECATED_RE = re.compile(r"\bdeprecated\b", re.IGNORECASE)
 LEGACY_PATH_RE = re.compile(r"(?:^|/)(?:legacy|deprecated)/", re.IGNORECASE)
 
-_INBOUND_KINDS = {"calls", "references", "extends", "implements"}
-_OUTBOUND_KINDS = {"calls", "references"}
+_INBOUND_KINDS = {"calls", "references", "extends", "implements", "jsx_render"}
+_OUTBOUND_KINDS = {"calls", "references", "jsx_render"}
 
 
 @dataclass(frozen=True)
