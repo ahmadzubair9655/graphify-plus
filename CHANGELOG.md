@@ -20,12 +20,23 @@ All notable changes to graphify-plus.
   (`interface/cli/init_cmd.py`, `audit/probe.py`). `gp init` now runs
   Louvain community detection at the end of the pipeline and writes a
   `community` attribute onto every symbol — both into the SQLite cache
-  and `graph_symbols.jsonl`. Three audit probes
-  (`edge_deletion_stability`, `confidence_drift`, `modularity_quality`)
-  previously skipped on every cache because nothing wrote this
-  attribute; they now grade. For backwards compatibility with caches
-  generated before this fix, the audit derives Louvain on-the-fly when
-  no node carries a `community` attribute (no re-`init` required).
+  and `graph_symbols.jsonl`. Unblocks the `edge_deletion_stability`
+  audit probe, which previously skipped on every cache because nothing
+  wrote this attribute. With the partial-coverage fix in
+  `_community_set` (synthetic `-1` community for placeholder nodes),
+  `modularity_quality` also runs to completion. For backwards
+  compatibility with caches generated before this fix, the audit
+  derives Louvain on-the-fly when no node carries a `community`
+  attribute (no re-`gp init` required).
+
+### Known limitations
+
+- `confidence_drift` audit probe still skips. It looks for edges with
+  `confidence == "INFERRED"` (string sentinel) and a numeric
+  `confidence_score`, but the TS/JS and other adapters emit numeric
+  confidence values (1.0, 0.7, …) directly. Unblocking it requires
+  tagging telemetry-overlay edges with the `INFERRED` sentinel — a
+  separate piece of work, not a community-attribute issue.
 - **JSX-internal symbol tracing** (`core/adapters/_ts_common.py`). The TS/JS
   adapter now does a second pass over `.tsx`/`.jsx` files (and any `.ts`/`.js`
   file containing JSX), resolving `<Component />` references to function or
