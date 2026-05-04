@@ -163,7 +163,7 @@
       "symbols": 4
     },
     "03_generic.ts": {
-      "edges": 4,
+      "edges": 5,
       "symbols": 4
     },
     "04_async.ts": {
@@ -171,7 +171,7 @@
       "symbols": 2
     },
     "05_decorator.ts": {
-      "edges": 3,
+      "edges": 4,
       "symbols": 4
     }
   }

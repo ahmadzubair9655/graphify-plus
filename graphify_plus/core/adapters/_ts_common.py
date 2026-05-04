@@ -144,6 +144,95 @@ def _call_expression_name_parts(node, source: bytes) -> list[str] | None:
     return None
 
 
+_DECL_NAME_PARENTS: frozenset[str] = frozenset({
+    "function_declaration",
+    "function_signature",
+    "generator_function_declaration",
+    "method_definition",
+    "method_signature",
+    "class_declaration",
+    "interface_declaration",
+    "type_alias_declaration",
+    "enum_declaration",
+    "abstract_class_declaration",
+    "abstract_method_signature",
+    "variable_declarator",
+    "required_parameter",
+    "optional_parameter",
+    "rest_pattern",
+    "shorthand_property_identifier_pattern",
+    "labeled_statement",
+})
+
+_REF_BLOCKING_ANCESTORS: frozenset[str] = frozenset({
+    # Import / export bindings — not references, declarations.
+    "import_statement",
+    "import_clause",
+    "import_specifier",
+    "namespace_import",
+    "named_imports",
+    # Destructuring binding contexts — identifiers here are introducing
+    # new local names, not referring to existing ones.
+    "object_pattern",
+    "array_pattern",
+})
+
+_JSX_NAME_PARENTS: frozenset[str] = frozenset({
+    "jsx_opening_element",
+    "jsx_closing_element",
+    "jsx_self_closing_element",
+})
+
+
+def _is_reference_position(node) -> bool:
+    """True if the identifier node is in a value-reference position
+    (worth emitting a `references` edge for) rather than a declaration,
+    import, JSX name, member-access property, or call-expression
+    function position."""
+    p = node.parent
+    if p is None:
+        return False
+    pt = p.type
+
+    # Declaration positions: identifier IS the name being introduced.
+    if pt in _DECL_NAME_PARENTS:
+        nm = p.child_by_field_name("name")
+        if nm is not None and nm.id == node.id:
+            return False
+
+    # Property side of `obj.prop` — not a same-file reference.
+    # (Object side IS a reference and we let it through.)
+    if pt == "member_expression":
+        prop = p.child_by_field_name("property")
+        if prop is not None and prop.id == node.id:
+            return False
+
+    # JSX element name — handled by jsx_render.
+    if pt in _JSX_NAME_PARENTS:
+        return False
+
+    # Function position of a call_expression — handled by calls.
+    if pt == "call_expression":
+        fn = p.child_by_field_name("function")
+        if fn is not None and fn.id == node.id:
+            return False
+
+    # Walk up: any ancestor in the blocking set means we're inside a
+    # declaration/binding context (import_specifier, destructuring
+    # pattern, etc).
+    a = p
+    while a is not None:
+        if a.type in _REF_BLOCKING_ANCESTORS:
+            return False
+        # Don't walk past the enclosing function — saves time and avoids
+        # false positives from unrelated outer constructs.
+        if a.type in _FUNCTION_DECL_TYPES or a.type in _FUNCTION_EXPR_TYPES:
+            break
+        a = a.parent
+
+    return True
+
+
 def _resolve_call_and_jsx_edges(
     root,
     source: bytes,
@@ -175,18 +264,23 @@ def _resolve_call_and_jsx_edges(
         if key in seen or src_id == dst_id:
             return
         seen.add(key)
+        # `references` edges are noisier than calls/jsx_render — they
+        # include things like passing a function as an argument or storing
+        # it in a const tuple, which are real liveness signals but also
+        # easier to over-emit. Lower confidence reflects that.
+        conf = 0.5 if kind == "references" else CONF_RESOLVED
         edge: Edge = Edge(  # type: ignore[typeddict-item]
             src=src_id,
             dst=dst_id,
             kind=kind,  # type: ignore[arg-type]
             resolved=True,
             span=(line, line),
-            confidence=CONF_RESOLVED,
+            confidence=conf,
         )
         # `confidence_score` is a numeric attribute the audit's
         # confidence_drift probe reads; keep it in sync with `confidence`
         # so probes that filter by it see consistent values.
-        edge["confidence_score"] = CONF_RESOLVED  # type: ignore[typeddict-unknown-key]
+        edge["confidence_score"] = conf  # type: ignore[typeddict-unknown-key]
         edges.append(edge)
 
     def resolve(parts: list[str], scope_chain: list[str], *, jsx: bool) -> str | None:
@@ -265,6 +359,12 @@ def _resolve_call_and_jsx_edges(
                 target = resolve(parts, next_scope, jsx=False)
                 if target is not None:
                     emit("calls", next_enclosing, target, node.start_point[0] + 1)
+
+        elif t == "identifier" and _is_reference_position(node):
+            name = _text(node, source)
+            target = resolve([name], next_scope, jsx=False)
+            if target is not None:
+                emit("references", next_enclosing, target, node.start_point[0] + 1)
 
         for ch in node.children:
             walk(ch, next_scope, next_enclosing)
