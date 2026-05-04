@@ -203,7 +203,17 @@ def classify_dead_candidate(sym: Symbol) -> str:
     if _REDUCER_HINT_RE.match(name):
         return "reducer_case"
 
-    if sym.get("exported") and not _TEST_PATH_RE.search(path):
+    # Module-level candidates that didn't match any false-positive
+    # heuristic above are the strongest "actually dead" signal we have.
+    # Depth check: a top-level declaration has exactly one dot between
+    # its module qname and its own name. Class methods / nested helpers
+    # have depth >= 2 and stay in `unknown`.
+    #
+    # Note: previously this branch required `exported=True`, but
+    # `find_dead_code` already filters exported symbols out via
+    # `_is_protected`, so the bucket was structurally unreachable on
+    # every codebase.
+    if qname.count(".") == 1 and kind in {"function", "method", "class"}:
         return "plausibly_dead"
 
     return "unknown"

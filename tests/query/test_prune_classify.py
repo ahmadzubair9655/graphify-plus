@@ -107,21 +107,28 @@ def test_classify_reducer_case():
     )
 
 
-def test_classify_plausibly_dead_for_exported_unused():
+def test_classify_plausibly_dead_for_module_level_function():
+    """v5.1: plausibly_dead is the module-level non-FP bucket. The previous
+    `exported=True` requirement was unreachable because exported symbols
+    are filtered out by `_is_protected` before they ever reach the
+    classifier."""
     sym = _sym(
         name="genuinelyDead",
         qualified_name="m.genuinelyDead",
         path="src/m.ts",
-        exported=True,
+        exported=False,
     )
     assert classify_dead_candidate(sym) == "plausibly_dead"
 
 
-def test_classify_unknown_for_internal_unmatched():
+def test_classify_unknown_for_nested_helper_not_matching_fp_rules():
+    """A nested helper (qname depth >= 2) in a non-JSX file with no FP
+    pattern match falls through to `unknown`."""
     sym = _sym(
         name="helper",
-        qualified_name="m.helper",
+        qualified_name="m.Outer.helper",
         path="src/m.ts",
+        parent_id="p",
         exported=False,
     )
     assert classify_dead_candidate(sym) == "unknown"
@@ -146,9 +153,8 @@ def test_confidence_for_categories_in_expected_ranges():
 
 def test_classify_all_sorts_by_descending_confidence():
     G: nx.MultiDiGraph = nx.MultiDiGraph()
-    s1 = _sym(id="a", name="x", qualified_name="m.x", path="src/m.tsx", parent_id="p")
-    s1["qualified_name"] = "m.Parent.x"
-    s2 = _sym(id="b", name="exportedDead", qualified_name="m.exportedDead", exported=True)
+    s1 = _sym(id="a", name="x", qualified_name="m.Parent.x", path="src/m.tsx", parent_id="p")
+    s2 = _sym(id="b", name="topLevelDead", qualified_name="m.topLevelDead")
     s3 = _sym(id="c", name="onClick", qualified_name="m.onClick")
     for s in (s1, s2, s3):
         G.add_node(s["id"], **s)
@@ -157,16 +163,17 @@ def test_classify_all_sorts_by_descending_confidence():
     assert out[0]["confidence"] >= out[-1]["confidence"]
 
 
-def test_prune_cli_min_confidence_filters(tmp_path):
-    """End-to-end: build a tiny repo, run gp init, then gp prune --json
-    --min-confidence 0.7 should only return high-confidence candidates."""
+def test_prune_cli_min_confidence_returns_genuine_dead_only(tmp_path):
+    """End-to-end: a fixture with one genuinely-dead module-level function
+    and one obvious false-positive (event handler) — `--min-confidence 0.7`
+    must return the genuine one and only the genuine one."""
     runner = CliRunner()
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / "m.ts").write_text(
-        "export function exportedDead(): number { return 1; }\n"
-        "function helperUnknown(): number { return 2; }\n"
-        "export function alive(): number { return exportedDead(); }\n"
+        "function genuinelyDead(): number { return 1; }\n"
+        "function onClickButton(): void { /* false positive */ }\n"
+        "export function alive(): number { return 1; }\n"
         "function liveCallee(): number { return alive(); }\n"
     )
     from graphify_plus.interface.cli.init_cmd import init_cmd
@@ -175,12 +182,14 @@ def test_prune_cli_min_confidence_filters(tmp_path):
     assert res.exit_code == 0, res.output
 
     res = runner.invoke(
-        prune_cmd,
-        ["--repo", str(repo), "--json", "--min-confidence", "0.7"],
+        prune_cmd, ["--repo", str(repo), "--json", "--min-confidence", "0.7"]
     )
     assert res.exit_code == 0, res.output
     data = json.loads(res.output)
-    # Every returned candidate must clear the bar.
+    qnames = {c["qualified_name"] for c in data["dead_classified"]}
+    assert "m.genuinelyDead" in qnames
+    assert "m.onClickButton" not in qnames  # filtered as reducer_case
     for c in data["dead_classified"]:
         assert c["confidence"] >= 0.7
+        assert c["likely_category"] == "plausibly_dead"
         assert c["likely_category"] in CATEGORIES
