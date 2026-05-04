@@ -82,17 +82,32 @@ def _grade_from_numeric(score: float, thresholds: tuple = (0.9, 0.75, 0.6, 0.4))
 
 def _community_set(G: nx.Graph) -> dict[Any, set]:
     out: dict[Any, set] = {}
+    missing: list = []
     for nid, data in G.nodes(data=True):
         c = data.get("community")
         if c is not None and c != -1:
             out.setdefault(c, set()).add(nid)
-    if out:
-        return out
-    # Backwards compat: caches written before per-node community
-    # assignment landed don't carry the attribute. Derive Louvain
-    # on-the-fly and inject so the probes can still grade. Mutates G —
-    # subsequent calls in the same audit reuse the assignment.
-    return _derive_and_attach_communities(G)
+        else:
+            missing.append(nid)
+
+    if not out:
+        # No coverage at all: derive Louvain on the full graph (e.g. caches
+        # written before per-node community assignment landed).
+        return _derive_and_attach_communities(G)
+
+    if missing:
+        # Partial coverage: real graphs include placeholder nodes for
+        # unresolved import targets (added by `symbol_graph.build`'s edge
+        # loader) that never receive a community assignment. NetworkX's
+        # `modularity()` rejects partitions that don't cover every node, so
+        # bucket the unassigned nodes into a synthetic community keyed on
+        # the sentinel `-1`. Mutate G so subsequent probes see the same
+        # assignment.
+        for nid in missing:
+            G.nodes[nid]["community"] = -1
+        out[-1] = set(missing)
+
+    return out
 
 
 def _derive_and_attach_communities(G: nx.Graph) -> dict[Any, set]:

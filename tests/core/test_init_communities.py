@@ -93,6 +93,34 @@ def test_audit_probes_run_when_community_present():
     assert r2["skipped"] is False, r2.get("reason")
 
 
+def test_modularity_runs_with_partial_community_coverage():
+    """Real audit graphs include placeholder nodes (unresolved import
+    targets) that never receive a community assignment. Before Fix 2 the
+    modularity probe skipped with `modularity error: ...` because
+    NetworkX rejected the incomplete partition. The fix backfills missing
+    nodes into a synthetic community so the probe can grade.
+    """
+    G: nx.Graph = nx.Graph()
+    # Two real communities…
+    for i in range(5):
+        G.add_node(f"a{i}", community=0)
+        G.add_node(f"b{i}", community=1)
+    for i in range(4):
+        G.add_edge(f"a{i}", f"a{i + 1}")
+        G.add_edge(f"b{i}", f"b{i + 1}")
+    G.add_edge("a0", "b0")
+    # …plus three placeholder nodes with NO community attribute.
+    for ext in ("ext1", "ext2", "ext3"):
+        G.add_node(ext)
+        G.add_edge("a0", ext)
+
+    r = probe_modularity_quality(G)
+    assert r["skipped"] is False, r.get("reason")
+    # Backfill assigned the placeholders to the synthetic -1 community.
+    assert all("community" in G.nodes[n] for n in ("ext1", "ext2", "ext3"))
+    assert G.nodes["ext1"]["community"] == -1
+
+
 def test_audit_falls_back_when_community_missing_on_old_caches():
     """Backwards-compat path (Task B option a): graphs ingested before the
     per-node community fix lack the attribute. Audit must derive Louvain
