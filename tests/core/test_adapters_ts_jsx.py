@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import networkx as nx
-
 from graphify_plus.core.adapters import JavaScriptAdapter, TypeScriptAdapter
 from graphify_plus.core.symbol_graph import build as build_graph
 from graphify_plus.query.prune import find_dead_code

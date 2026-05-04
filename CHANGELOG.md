@@ -6,6 +6,16 @@ All notable changes to graphify-plus.
 
 ### New
 
+- **Honest dead-code classification in `gp prune`**
+  (`query/prune.py`, `interface/cli/prune_cmd.py`). Each candidate now
+  carries a `likely_category` and a `confidence` 0.0–1.0. Categories:
+  `plausibly_dead` (≈0.85), `prop_type` (≈0.4), `unknown` (≈0.5), and
+  the four false-positive-prone tags `jsx_internal`, `reducer_case`,
+  `test_internal`, `pytest_fixture`, `dunder_method` (all ≈0.15). New
+  `--min-confidence` flag filters to high-signal candidates only — e.g.
+  `gp prune --min-confidence 0.7` returns only the genuinely-likely-dead
+  symbols. The text output displays category + confidence inline; JSON
+  output adds a `dead_classified` array.
 - **Per-node community attributes during `gp init`**
   (`interface/cli/init_cmd.py`, `audit/probe.py`). `gp init` now runs
   Louvain community detection at the end of the pipeline and writes a
