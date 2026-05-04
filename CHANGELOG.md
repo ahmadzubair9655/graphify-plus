@@ -6,6 +6,19 @@ All notable changes to graphify-plus.
 
 ### Docs
 
+- **README rewritten for 5.1.0 surface** (`README.md`,
+  `README.legacy.md`). The pre-v4 README documented an "enhancement
+  layer over safishamsi/graphify" architecture that no longer exists —
+  approximately 80% of its content described modules, APIs, and CLI
+  commands that were removed during the v4 replatform. The previous
+  README is preserved verbatim as `README.legacy.md` with a header
+  noting its historical status. The new `README.md` is written from
+  scratch around the verified current surface: 26 CLI subcommands
+  grouped by purpose, 10 audit probes, the dead-code classifier, the
+  drift rules engine, the five same-file edge kinds, and the actual
+  package layout. Every claim was verified against `gp --help`,
+  `pyproject.toml`, the probe code, and live tool output before it
+  went into the file.
 - **README: Dead-code analysis section** (`README.md`). New
   `## Dead-code analysis` section after the audit, covering `gp init`
   + `gp prune` usage, the eight classifier categories with their
