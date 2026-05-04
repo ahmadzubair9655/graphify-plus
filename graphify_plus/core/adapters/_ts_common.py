@@ -98,7 +98,53 @@ def _jsx_element_name_parts(node, source: bytes) -> list[str] | None:
     return parts or None
 
 
-def _resolve_jsx_render_edges(
+def _call_expression_name_parts(node, source: bytes) -> list[str] | None:
+    """Return the callee name as identifier parts, or None when the call
+    cannot be statically resolved without cross-file knowledge.
+
+    Handles:
+      - identifier callee:        ``foo(x)``        -> ["foo"]
+      - member-expression callee: ``Ns.foo(x)``     -> ["Ns", "foo"]
+      - nested member access:     ``A.B.foo()``     -> ["A", "B", "foo"]
+    Returns None for call subjects we don't try to resolve (super(), this.x(),
+    new-expressions, optional-chained calls on computed properties, etc.).
+    """
+    fn_node = node.child_by_field_name("function")
+    if fn_node is None:
+        return None
+    if fn_node.type == "identifier":
+        return [_text(fn_node, source)]
+    if fn_node.type in {"member_expression", "nested_identifier"}:
+        parts: list[str] = []
+
+        def collect(n) -> bool:
+            if n.type == "identifier":
+                parts.append(_text(n, source))
+                return True
+            if n.type == "property_identifier":
+                parts.append(_text(n, source))
+                return True
+            if n.type in {"member_expression", "nested_identifier"}:
+                obj = n.child_by_field_name("object")
+                prop = n.child_by_field_name("property")
+                if obj is None or prop is None:
+                    # Subscript / computed property — give up.
+                    return False
+                if not collect(obj):
+                    return False
+                return collect(prop)
+            # `this`, `super`, computed `[expr]`, parenthesised expressions,
+            # call_expressions (chained calls) — out of scope for static
+            # resolution. Bail.
+            return False
+
+        if not collect(fn_node):
+            return None
+        return parts or None
+    return None
+
+
+def _resolve_call_and_jsx_edges(
     root,
     source: bytes,
     *,
@@ -106,35 +152,48 @@ def _resolve_jsx_render_edges(
     module_id: str,
     symbols: list[Symbol],
 ) -> list[Edge]:
-    """Walk the AST again, this time descending into function bodies, and
-    emit JSX_RENDER edges from each enclosing function/component to any
-    same-file symbol it renders via JSX.
+    """Walk the AST descending into function bodies and emit two edge kinds:
+
+      - ``jsx_render`` from an enclosing component to any same-file symbol
+        it renders via ``<Component />``.
+      - ``calls`` from an enclosing function/method to any same-file symbol
+        it invokes via ``foo()`` or ``Ns.foo()``.
+
+    Both kinds use the same scope-chain resolution: walk innermost-first,
+    looking for a symbol whose qualified name matches ``{prefix}.{head}``
+    (and any subsequent ``.parts``). Cross-file resolution is intentionally
+    out of scope — unresolved calls stay unresolved (the imports graph and
+    audit's unresolved_imports probe handle that). Confidence is
+    ``CONF_RESOLVED`` (0.7) for both.
     """
     by_qname: dict[str, str] = {s["qualified_name"]: s["id"] for s in symbols}
     edges: list[Edge] = []
-    seen: set[tuple[str, str, int]] = set()
+    seen: set[tuple[str, str, str, int]] = set()
 
-    def emit(src_id: str, dst_id: str, line: int) -> None:
-        key = (src_id, dst_id, line)
+    def emit(kind: str, src_id: str, dst_id: str, line: int) -> None:
+        key = (kind, src_id, dst_id, line)
         if key in seen or src_id == dst_id:
             return
         seen.add(key)
-        edges.append(
-            Edge(
-                src=src_id,
-                dst=dst_id,
-                kind="jsx_render",
-                resolved=True,
-                span=(line, line),
-                confidence=CONF_RESOLVED,
-            )
+        edge: Edge = Edge(  # type: ignore[typeddict-item]
+            src=src_id,
+            dst=dst_id,
+            kind=kind,  # type: ignore[arg-type]
+            resolved=True,
+            span=(line, line),
+            confidence=CONF_RESOLVED,
         )
+        # `confidence_score` is a numeric attribute the audit's
+        # confidence_drift probe reads; keep it in sync with `confidence`
+        # so probes that filter by it see consistent values.
+        edge["confidence_score"] = CONF_RESOLVED  # type: ignore[typeddict-unknown-key]
+        edges.append(edge)
 
-    def resolve(parts: list[str], scope_chain: list[str]) -> str | None:
+    def resolve(parts: list[str], scope_chain: list[str], *, jsx: bool) -> str | None:
         if not parts:
             return None
         head = parts[0]
-        if not head or not head[0].isalpha() or head[0].islower():
+        if jsx and (not head or not head[0].isalpha() or head[0].islower()):
             # host element like <div/> or <svg/> — never user-defined here
             return None
         for prefix in scope_chain:
@@ -196,15 +255,26 @@ def _resolve_jsx_render_edges(
         if t in JSX_NODE_TYPES:
             parts = _jsx_element_name_parts(node, source)
             if parts:
-                target = resolve(parts, next_scope)
+                target = resolve(parts, next_scope, jsx=True)
                 if target is not None:
-                    emit(next_enclosing, target, node.start_point[0] + 1)
+                    emit("jsx_render", next_enclosing, target, node.start_point[0] + 1)
+
+        elif t == "call_expression":
+            parts = _call_expression_name_parts(node, source)
+            if parts:
+                target = resolve(parts, next_scope, jsx=False)
+                if target is not None:
+                    emit("calls", next_enclosing, target, node.start_point[0] + 1)
 
         for ch in node.children:
             walk(ch, next_scope, next_enclosing)
 
     walk(root, [module_qname], module_id)
     return edges
+
+
+# Back-compat alias — older imports still reference the JSX-only name.
+_resolve_jsx_render_edges = _resolve_call_and_jsx_edges
 
 
 def parse_ts_like(
@@ -405,16 +475,18 @@ def parse_ts_like(
     # JSX-internal symbol resolution: <Foo /> in the same file resolves to a
     # function/component defined in this file. Without this pass, JSX-only
     # internal helpers look unused and get flagged as dead.
-    if _file_has_jsx(tree.root_node):
-        edges.extend(
-            _resolve_jsx_render_edges(
-                tree.root_node,
-                source,
-                module_qname=module_qname,
-                module_id=module_id,
-                symbols=symbols,
-            )
+    # Same-file call resolution always runs for TS/JS files; JSX render
+    # resolution is folded into the same pass and only emits when JSX
+    # elements are present in the tree. One walk, two edge kinds.
+    edges.extend(
+        _resolve_call_and_jsx_edges(
+            tree.root_node,
+            source,
+            module_qname=module_qname,
+            module_id=module_id,
+            symbols=symbols,
         )
+    )
 
     symbols.sort(key=lambda s: (s["path"], s["span"][0], s["qualified_name"]))
     edges.sort(
