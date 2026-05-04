@@ -13,7 +13,51 @@ import orjson
 from ...core import cas
 from ...core.ingest import ingest
 from ...core.skeletonizer import skeletonize_all
+from ...core.symbol_graph import build as build_graph
 from ...runtime.store import Store, cache_path
+
+
+def _assign_communities(symbols: list, edges: list) -> dict[str, int]:
+    """Compute Louvain communities and write a `community` attribute onto
+    each symbol in-place.
+
+    Three audit probes (edge_deletion_stability, confidence_drift,
+    modularity_quality) skip when nodes lack this attribute, so we set it
+    eagerly during init. Returns the {symbol_id -> community_index} map for
+    callers that want to persist it elsewhere (e.g. the meta table for
+    backwards compatibility with the v4.x semantic-search cache).
+
+    Symbols with no community assignment (isolated nodes / phantom symbols)
+    receive `community = -1` so audit can distinguish "unassigned" from
+    "assigned to community 0".
+    """
+    import json
+
+    import networkx as nx
+
+    G = build_graph(symbols, edges)
+    UG = nx.Graph()
+    UG.add_nodes_from(G.nodes(data=True))
+    for u, v in G.edges():
+        if u != v and not UG.has_edge(u, v):
+            UG.add_edge(u, v)
+
+    if not UG.nodes:
+        return {}
+
+    parts = nx.community.louvain_communities(UG, seed=1337)
+    parts_sorted = [sorted(p) for p in parts]
+    parts_sorted.sort(key=lambda p: (-len(p), p[0] if p else ""))
+    comm_map: dict[str, int] = {}
+    for idx, part in enumerate(parts_sorted):
+        for sid in part:
+            comm_map[sid] = idx
+
+    for s in symbols:
+        s["community"] = comm_map.get(s["id"], -1)
+    # Defensive: callers downstream may rely on `_meta` knowing this ran.
+    _ = json.dumps  # keep import-time side-effect free
+    return comm_map
 
 
 def _write_jsonl(out: Path, symbols: list, edges: list) -> None:
@@ -62,6 +106,10 @@ def init_cmd(repo: Path, print_jsonl: bool, no_parallel: bool) -> None:
     repo = repo.resolve()
     result = ingest(repo, parallel=not no_parallel)
 
+    # Compute Louvain communities and write per-node `community` attributes.
+    # Three audit probes need this; leaving it implicit was a v4.x footgun.
+    comm_map = _assign_communities(result.symbols, result.edges)
+
     if print_jsonl:
         opt = orjson.OPT_SORT_KEYS | orjson.OPT_APPEND_NEWLINE
         out = sys.stdout.buffer
@@ -105,6 +153,10 @@ def init_cmd(repo: Path, print_jsonl: bool, no_parallel: bool) -> None:
         store.set_meta("repo_root", str(repo))
         store.set_meta("symbol_count", str(len(result.symbols)))
         store.set_meta("edge_count", str(len(result.edges)))
+        if comm_map:
+            store.set_meta(
+                "communities_v1", orjson.dumps(comm_map, option=orjson.OPT_SORT_KEYS).decode()
+            )
         # CAS: dedupe identical skeleton bodies.
         links: list[tuple[str, str]] = []
         for sid, body in skeletons.items():

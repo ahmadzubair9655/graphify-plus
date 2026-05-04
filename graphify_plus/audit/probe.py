@@ -84,8 +84,32 @@ def _community_set(G: nx.Graph) -> dict[Any, set]:
     out: dict[Any, set] = {}
     for nid, data in G.nodes(data=True):
         c = data.get("community")
-        if c is not None:
+        if c is not None and c != -1:
             out.setdefault(c, set()).add(nid)
+    if out:
+        return out
+    # Backwards compat: caches written before per-node community
+    # assignment landed don't carry the attribute. Derive Louvain
+    # on-the-fly and inject so the probes can still grade. Mutates G —
+    # subsequent calls in the same audit reuse the assignment.
+    return _derive_and_attach_communities(G)
+
+
+def _derive_and_attach_communities(G: nx.Graph) -> dict[Any, set]:
+    UG = G.to_undirected() if G.is_directed() else G
+    if UG.is_multigraph():
+        UG = nx.Graph(UG)
+    if UG.number_of_nodes() == 0 or UG.number_of_edges() == 0:
+        return {}
+    try:
+        parts = nx.community.louvain_communities(UG, seed=1337)
+    except (nx.NetworkXError, ValueError):
+        return {}
+    out: dict[Any, set] = {}
+    for idx, part in enumerate(parts):
+        for nid in part:
+            out.setdefault(idx, set()).add(nid)
+            G.nodes[nid]["community"] = idx
     return out
 
 

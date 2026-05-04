@@ -56,14 +56,20 @@ class TestEdgeDeletionStability:
         r = probe_edge_deletion_stability(nx.Graph(), iterations=1)
         assert r["skipped"] is True
 
-    def test_no_community_attr(self):
+    def test_no_community_attr_falls_back_to_louvain(self):
+        """v5.1+: when nodes lack a `community` attribute, the probe derives
+        Louvain communities on-the-fly instead of skipping. This unblocks
+        audits on caches written before per-node community assignment landed
+        and on graphs ingested without `gp init`.
+        """
         from graphify_plus.audit.probe import probe_edge_deletion_stability
 
         G = nx.Graph()
         G.add_edges_from([("a", "b"), ("b", "c")])
         r = probe_edge_deletion_stability(G)
-        assert r["skipped"] is True
-        assert "community" in r["reason"].lower()
+        assert r["skipped"] is False
+        # Louvain should have been written back onto the nodes.
+        assert all("community" in G.nodes[n] for n in G.nodes)
 
     def test_no_edges(self):
         from graphify_plus.audit.probe import probe_edge_deletion_stability
