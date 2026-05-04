@@ -165,6 +165,66 @@ graphify-plus audit graph.json --iterations 10 --seed 123
 
 ---
 
+## Dead-code analysis
+
+`gp prune` reports symbols the budgeter should exclude from any framed
+context — and, for callers doing actual cleanup work, candidates worth
+deleting from the codebase. Each candidate is classified by a likely
+category and a confidence score from 0.0 to 1.0, so callers can filter
+out the false-positive-prone buckets and focus on high-signal
+candidates.
+
+```bash
+gp init --repo .                            # build the symbol graph
+gp prune --repo . --json                    # all candidates, classified
+gp prune --repo . --min-confidence 0.7      # high-confidence only
+```
+
+**Categories:**
+
+| Category | Confidence | What it means |
+|---|---|---|
+| `plausibly_dead` | ≈0.85 | Module-level symbol with no inbound edges and no false-positive heuristic match. The bucket worth deleting. |
+| `prop_type` | ≈0.4 | TS `interface`/`type` ending in `*Props` / `*Properties`. Often used only as a type annotation that the graph doesn't track. |
+| `unknown` | ≈0.5 | No rule matched — review by hand. |
+| `jsx_internal` | ≈0.15 | Nested function inside a JSX-bearing parent. Often a real handler that dynamic dispatch hides. |
+| `reducer_case` | ≈0.15 | `onX` / `handleX` / `*Reducer` / `*Handler` name shape. Usually wired up by string keys. |
+| `test_internal` | ≈0.15 | Lives in `__tests__/` or `*.test`/`*.spec` files. |
+| `pytest_fixture` | ≈0.15 | `conftest.py` or `fixture_*` / `setup_*` Python helpers. |
+| `dunder_method` | ≈0.15 | `__dunder__` names in `.py` files. |
+
+`--min-confidence 0.7` returns only the `plausibly_dead` bucket — the
+list to actually act on. The lower-confidence buckets are surfaced for
+inspection but not recommended for blind deletion.
+
+JSON output adds a `dead_classified` array carrying each candidate's
+qualified name, file path, kind, language, category, and confidence.
+
+### Edge kinds resolved within a file
+
+For TypeScript and JavaScript the adapter resolves three intra-file
+relationships during `gp init`. Each one is what saves a real symbol
+from looking dead in the prune output:
+
+- **`jsx_render`** — `<Component />` references resolve to the
+  function or component declaration in the same file (handles
+  identifier, member-expression, arrow-function, and nested-component
+  patterns). Confidence 0.7.
+- **`calls`** — `foo(x)`, `Ns.foo(x)`, calls inside template literal
+  substitutions, and calls inside JSX expression containers all
+  resolve to the same-file callee. Confidence 0.7.
+- **`references`** — bare identifier references (functions stored in
+  `const SCENES = [Foo, Bar]`, passed as `subscribe(callback)`,
+  returned as values, assigned as object-literal values) resolve to
+  the same-file target. Confidence 0.5 — noisier than calls but the
+  signal that catches dynamic-dispatch patterns.
+
+Cross-file resolution is intentionally out of scope for these passes.
+Cross-file calls remain in the unresolved-imports bucket and are
+graded by the `unresolved_imports` audit probe.
+
+---
+
 ## Graph diff for code review
 
 ```bash

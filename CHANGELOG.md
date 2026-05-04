@@ -4,6 +4,17 @@ All notable changes to graphify-plus.
 
 ## Unreleased
 
+### Docs
+
+- **README: Dead-code analysis section** (`README.md`). New
+  `## Dead-code analysis` section after the audit, covering `gp init`
+  + `gp prune` usage, the eight classifier categories with their
+  confidence tiers, and `--min-confidence 0.7` for the actionable
+  high-signal subset. Plus a brief subsection naming the three
+  same-file edge kinds (`jsx_render`, `calls`, `references`) the TS/JS
+  adapter resolves during `gp init`. The README's existing v2/v3
+  enhancement-pipeline structure is left untouched — additive only.
+
 ### CI
 
 - **Version-sync guard** (`tests/test_version_sync.py`). Pytest test
