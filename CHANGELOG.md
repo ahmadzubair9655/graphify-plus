@@ -4,6 +4,17 @@ All notable changes to graphify-plus.
 
 ## Unreleased
 
+### CI
+
+- **Version-sync guard** (`tests/test_version_sync.py`). Pytest test
+  that fails the build if `pyproject.toml`'s `[project].version` and
+  `graphify_plus.__version__` drift apart. Surfaces in any environment
+  that runs the standard test suite (no extra CI machinery needed),
+  with an error message that names both values so the fix is obvious.
+  Motivated by the 5.1.0 release prep, which discovered
+  `__version__` had silently sat at `"3.1.1"` for five major-line
+  releases.
+
 ## 5.1.0 — 2026-05-04
 
 This release makes the prune subsystem genuinely usable on real-world
