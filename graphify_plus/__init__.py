@@ -18,7 +18,7 @@ multimodal, live, federation, local, personal) are planned but not yet shipped.
 
 from __future__ import annotations
 
-__version__ = "3.1.1"
+__version__ = "5.1.0"
 
 # Re-export the headline functions so callers can do `from graphify_plus import …`
 from graphify_plus.audit.probe import (  # noqa: E402,F401

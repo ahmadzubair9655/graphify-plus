@@ -4,8 +4,50 @@ All notable changes to graphify-plus.
 
 ## Unreleased
 
+## 5.1.0 — 2026-05-04
+
+This release makes the prune subsystem genuinely usable on real-world
+TypeScript and JavaScript codebases for the first time. Function calls,
+JSX render relationships, and value references are now resolved within
+a file, so locally-used helpers no longer appear as dead code. Prune
+output is classified by confidence, and the new `--min-confidence` flag
+filters to high-confidence dead-code candidates only. The audit gains
+the `modularity_quality` probe and writes per-node community attributes
+during `gp init`. Validated end-to-end against a 451-file production
+codebase: high-confidence prune list went from 103 false positives to 0.
+
 ### New
 
+- **JSX-internal symbol tracing** (`core/adapters/_ts_common.py`). The
+  TS/JS adapter now does a second AST pass over `.tsx`/`.jsx` files
+  (and any `.ts`/`.js` file containing JSX), resolving `<Component />`
+  references to function or component declarations in the same file.
+  Resolved references are emitted as `jsx_render` edges, which
+  `gp prune` counts as inbound liveness evidence. The walker also
+  descends into function bodies so nested local components become
+  symbols. Patterns covered: simple identifier (`<Foo/>`), member
+  expression (`<Card.Header/>`), arrow-function components, and
+  components declared inside another component's body. Host elements
+  (`<div/>`, `<svg/>`) are filtered out.
+- **Same-file `calls` edge extraction** (`core/adapters/_ts_common.py`).
+  The TS/JS adapter now emits `calls` edges from each enclosing function
+  to any same-file symbol it invokes. Handles identifier callees
+  (`foo()`), member-expression callees (`Ns.foo()`, `A.B.fn()`), calls
+  inside template literal substitutions (`` `${fn(x)}` ``), and calls
+  inside JSX expression containers (`<div>{fn(x)}</div>`). Cross-file
+  calls stay unresolved on purpose — those are the imports graph's job.
+  Edge confidence: `0.7` (CONF_RESOLVED), with a numeric
+  `confidence_score` attribute.
+- **Same-file `references` edge extraction** (`core/adapters/_ts_common.py`).
+  Closes the function-as-value false-positive class: functions stored in
+  const arrays (`const SCENES = [Foo, Bar]`), passed as arguments
+  (`subscribe(callback)`), returned from other functions, or assigned as
+  object-literal values (`{ onClick: handler }`) now get inbound
+  `references` edges. Uses parent-context exclusions to skip declaration
+  positions, import bindings, JSX element names, member-expression
+  property names, call-expression function positions, and destructuring
+  patterns. Edge confidence: `0.5` (lower than calls/jsx_render —
+  identifier references are noisier signals).
 - **Honest dead-code classification in `gp prune`**
   (`query/prune.py`, `interface/cli/prune_cmd.py`). Each candidate now
   carries a `likely_category` and a `confidence` 0.0–1.0. Categories:
@@ -29,24 +71,38 @@ All notable changes to graphify-plus.
   derives Louvain on-the-fly when no node carries a `community`
   attribute (no re-`gp init` required).
 
+### Compatibility
+
+Additive only. Existing `cache.db` files and `graph_symbols.jsonl`
+files written by 5.0.x remain readable. New edge kinds (`jsx_render`,
+`calls`, `references`) and the new `community` node attribute are
+purely additions — graph consumers that ignore unknown attributes are
+unaffected. No re-`gp init` is required to upgrade, though re-running
+will surface the new edges and unblock the audit probes.
+
 ### Known limitations
 
-- `confidence_drift` audit probe still skips. It looks for edges with
-  `confidence == "INFERRED"` (string sentinel) and a numeric
+- **`confidence_drift` audit probe still skips.** It looks for edges
+  with `confidence == "INFERRED"` (string sentinel) and a numeric
   `confidence_score`, but the TS/JS and other adapters emit numeric
-  confidence values (1.0, 0.7, …) directly. Unblocking it requires
+  confidence values (1.0, 0.7, …) directly. Unblocking requires
   tagging telemetry-overlay edges with the `INFERRED` sentinel — a
   separate piece of work, not a community-attribute issue.
-- **JSX-internal symbol tracing** (`core/adapters/_ts_common.py`). The TS/JS
-  adapter now does a second pass over `.tsx`/`.jsx` files (and any `.ts`/`.js`
-  file containing JSX), resolving `<Component />` references to function or
-  component declarations in the same file. Resolved references are emitted as
-  `jsx_render` edges, which `gp prune` counts as inbound liveness evidence.
-  The walker also descends into function bodies so nested local components
-  become symbols. Patterns covered: simple identifier (`<Foo/>`), member
-  expression (`<Card.Header/>`), arrow-function components, and components
-  declared inside another component's body. Host elements (`<div/>`,
-  `<svg/>`) are filtered out.
+- **`prop_type` candidates accumulate in prune output.** TypeScript
+  `interface` and `type` declarations matching `*Props` / `*Properties`
+  are flagged at confidence 0.4 because the adapter doesn't yet track
+  type references as graph edges. A future `type_references` edge kind
+  would close this.
+- **Cross-file call resolution is not attempted.** Same-file scope
+  resolution only. Cross-file calls remain in the unresolved-imports
+  bucket and are graded by the `unresolved_imports` audit probe rather
+  than rescuing dead-code candidates.
+- **JSX `Foo.Bar = function() {}` property assignments aren't
+  resolved.** The walker recurses into function bodies and handles
+  named declarations, but does not capture sub-components attached to
+  a parent via property assignment. These slip through as
+  `jsx_internal` post-hoc rather than getting proper `jsx_render`
+  edges.
 
 ## v4.1.0 — Resilience Foundation
 
