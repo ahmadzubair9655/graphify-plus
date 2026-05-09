@@ -817,6 +817,225 @@ def find_origin_cmd(repo: Path, stacktrace: str, deploy_sha: str, as_json: bool)
         click.echo(f"  {loc}{sym}{moved}  edits={r['edits_since_deploy']}")
 
 
+@daemon_cmd.group("team")
+def team_group() -> None:
+    """Shared team graph (Layer 11.1, local-fs tier)."""
+
+
+@team_group.command("init")
+@click.argument("root", type=click.Path(path_type=Path))
+@click.option("--name", default="team")
+def team_init_cmd(root: Path, name: str) -> None:
+    from ...daemon.team import init_team
+
+    cfg = init_team(root, name=name)
+    click.echo(f"team initialised at {cfg.root} (name={cfg.name})")
+
+
+@team_group.command("push-annotation")
+@click.argument("target")
+@click.argument("note")
+@click.option("--root", default="", help="Team root (default: $GRAPHIFY_PLUS_TEAM_ROOT).")
+@click.option("--author", default="")
+def team_push_cmd(target: str, note: str, root: str, author: str) -> None:
+    import os
+
+    from ...daemon.team import detect_team_root, push_annotation
+
+    base = Path(root) if root else detect_team_root()
+    if base is None:
+        raise click.ClickException(
+            "no team root; pass --root or set GRAPHIFY_PLUS_TEAM_ROOT"
+        )
+    out = push_annotation(
+        base, target=target, note=note, author=author or os.environ.get("USER", "anon")
+    )
+    click.echo(f"pushed: {out['fingerprint']}")
+
+
+@team_group.command("pull")
+@click.option("--root", default="")
+@click.option("--json", "as_json", is_flag=True)
+def team_pull_cmd(root: str, as_json: bool) -> None:
+    from ...daemon.team import detect_team_root, pull_annotations
+
+    base = Path(root) if root else detect_team_root()
+    if base is None:
+        raise click.ClickException("no team root")
+    rows = pull_annotations(base)
+    if as_json:
+        click.echo(json.dumps(rows, indent=2))
+        return
+    if not rows:
+        click.echo("no annotations")
+        return
+    for r in rows:
+        click.echo(
+            f"  [{r.get('ts', '?')[:19]}] {r.get('author', '?')} → {r.get('target', '?')}: {r.get('note', '')[:80]}"
+        )
+
+
+@team_group.command("conflicts")
+@click.option("--root", default="")
+@click.option("--json", "as_json", is_flag=True)
+def team_conflicts_cmd(root: str, as_json: bool) -> None:
+    from ...daemon.team import detect_conflicts, detect_team_root, pull_annotations
+
+    base = Path(root) if root else detect_team_root()
+    if base is None:
+        raise click.ClickException("no team root")
+    rows = detect_conflicts(pull_annotations(base))
+    if as_json:
+        click.echo(json.dumps(rows, indent=2))
+        return
+    if not rows:
+        click.echo("no conflicts")
+        return
+    for c in rows:
+        click.echo(f"  {c['target']}: {c['n_distinct_notes']} distinct notes")
+
+
+@daemon_cmd.command("session-start")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def session_start_cmd(repo: Path, as_json: bool) -> None:
+    """Start an always-on session: daemon + watcher + claude-md + health snapshot."""
+    from ...daemon.session_manager import session_start
+
+    out = session_start(repo.resolve())
+    if as_json:
+        click.echo(json.dumps(out, indent=2))
+        return
+    click.echo(f"session: {out['repo']}  started {out['started_at']}")
+    for s in out["steps"]:
+        if "error" in s:
+            click.echo(f"  ✗ {s['step']}: {s['error']}")
+        elif "skipped" in s:
+            click.echo(f"  · {s['step']}: skipped ({s['skipped']})")
+        else:
+            click.echo(f"  ✓ {s['step']}")
+
+
+@daemon_cmd.command("session-status")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def session_status_cmd(repo: Path, as_json: bool) -> None:
+    """Single-command 'is the always-on environment healthy?'"""
+    from ...daemon.session_manager import session_status
+
+    state = session_status(repo.resolve())
+    body = state.__dict__
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+        return
+    for k, v in body.items():
+        click.echo(f"  {k:<20} {v}")
+
+
+@daemon_cmd.command("pre-edit")
+@click.argument("target")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def pre_edit_cmd(target: str, repo: Path, as_json: bool) -> None:
+    """Run the master plan's 8-step pre-edit ritual against TARGET."""
+    from ...daemon.indexes import InMemoryGraph
+    from ...daemon.session_manager import pre_edit
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    rep = pre_edit(snap, target)
+    if as_json:
+        click.echo(json.dumps(rep.to_dict(), indent=2))
+        return
+    click.echo(f"# pre-edit ritual — {target}")
+    click.echo(f"risk: {rep.risk}")
+    if rep.affected:
+        click.echo("\naffected:")
+        for a in rep.affected:
+            click.echo(f"  - {a['label']}  {a['source_file']}:{a['line_number']}")
+    if rep.blast_radius:
+        click.echo(f"\nblast radius ({len(rep.blast_radius)} dependents):")
+        for d in rep.blast_radius[:8]:
+            click.echo(f"  - {d['label']}  {d['source_file']}:{d['line_number']}")
+    if rep.rule_violations:
+        click.echo(f"\nrule violations on this symbol: {len(rep.rule_violations)}")
+    if rep.tests_to_run:
+        click.echo("\ntests to run:")
+        for t in rep.tests_to_run:
+            click.echo(f"  - {t['label']}  {t['source_file']}:{t['line_number']}")
+    if rep.coverage_pct is not None:
+        click.echo(f"\ncoverage: {rep.coverage_pct}%")
+    if rep.notes:
+        click.echo("\nnotes:")
+        for n in rep.notes:
+            click.echo(f"  · {n}")
+
+
+@daemon_cmd.command("benchmark")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--corpus", default="", help="Corpus JSON; default = built-in tiny fixture.")
+@click.option("--json", "as_json", is_flag=True)
+def benchmark_cmd(repo: Path, corpus: str, as_json: bool) -> None:
+    """Run graphify-plus against a benchmark corpus (Layer 14.3)."""
+    from ...daemon.benchmark import (
+        builtin_tiny_corpus,
+        load_corpus,
+        render_report,
+        run_entry,
+    )
+    from ...daemon.indexes import InMemoryGraph
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    if corpus:
+        entries = load_corpus(Path(corpus))
+    else:
+        entries = builtin_tiny_corpus()
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    reports = [run_entry(e, snap) for e in entries]
+    body = {
+        "reports": [
+            {
+                "name": r.name,
+                "passed": r.passed,
+                "total": r.total,
+                "precision": r.precision(),
+                "results": [c.__dict__ for c in r.results],
+            }
+            for r in reports
+        ]
+    }
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+    else:
+        click.echo(render_report(reports))
+
+
 @daemon_cmd.command("quickstart")
 @click.option(
     "--repo",
