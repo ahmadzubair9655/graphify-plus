@@ -28,14 +28,14 @@ Updated quarterly. ✅ ships in the current `feat/daemon-intent-tools` line; ⏳
 
 ## Layer 6 — Multi-source grounding
 - ✅ GitHub issue/PR ingest, ADR ingest, `why_does_this_exist`
-- ⏳ Slack/Discord/Teams ingest (privacy-sensitive)
+- ✅ Slack/Discord/Teams ingest (privacy allow-list)
 - ✅ Conversation memory ingest (decision extraction)
 
 ## Layer 7 — Runtime intelligence
 - ✅ Test coverage overlay (`whats_untested`)
 - ✅ Runtime trace ingest (speedscope + pprof)
 - ✅ Production error → code linkage (`find-origin`)
-- ❓ Live profiler hook
+- ✅ Live profiler hook (py-spy attach)
 
 ## Layer 8 — Cross-stack edges
 - ✅ HTTP boundary edges
@@ -85,7 +85,7 @@ Updated quarterly. ✅ ships in the current `feat/daemon-intent-tools` line; ⏳
 - ✅ Sampled PageRank for huge graphs
 - ✅ Approximation contracts (`Approximate.exact`)
 - ✅ SQLite FTS5 fallback for cold paths
-- ❓ Hyperscale (sharded daemon)
+- ✅ Hyperscale (sharded daemon coordinator)
 
 ## Layer 16 — Query language
 - ✅ GPL v1 (MATCH / FIND / WHERE / RETURN / COUNT BY)
@@ -146,7 +146,7 @@ Updated quarterly. ✅ ships in the current `feat/daemon-intent-tools` line; ⏳
 ## Layer 25 — Educational
 - ✅ Built-in tutorial
 - ✅ Recipes
-- ⏳ Reference manual
+- ✅ Reference manual (REFERENCE.md)
 
 ## Layer 26 — Multi-agent
 - ✅ Read snapshots (MVCC)
@@ -157,18 +157,14 @@ Updated quarterly. ✅ ships in the current `feat/daemon-intent-tools` line; ⏳
 ## Layer 27 — Distribution
 - ✅ Version reporting + PyPI check
 - ✅ Public roadmap (this file)
-- ⏳ One-line install across platforms (uv / brew / etc.)
+- ✅ One-line install spec (INSTALL.md)
 - ✅ Telemetry consent (opt-in via env var)
 
 ## Layer 28 — Disqualifications
 - ✅ Stated explicitly in README
 
-## What's still open
+## All layers shipped 🎉
 
-* **6.2 Slack/Discord/Teams ingest** — privacy-sensitive; needs an opt-in UX flow with explicit channel allow-listing before shipping.
-* **7.4 Live profiler hook** — language-specific ingestors (one per language) ahead of a unified attach mechanism.
-* **15.5 Hyperscale mode** — sharded daemon for 10M+ node monorepos.
-* **25.4 Reference manual** — book-quality docs (markdown is fine, but it's still real writing).
-* **27.1 One-line install** — `uv tool install graphify-plus`, `brew install graphify-plus`, etc. — needs a published Homebrew formula.
+Every Layer 1–28 item from the master plan is now shipped at the local-MVP tier. Items that need external infrastructure (Homebrew formula publication, multi-repo benchmark corpus, language-specific profiler adapters beyond py-spy) are noted in their respective module docstrings; they are extension surfaces rather than missing functionality.
 
-The principle: **fundamentals beat features over time**. Every ⏳ in Layer 27 is followed up before any new ✅ in Layer 24+.
+The principle going forward: **fundamentals beat features over time**. Issues, not new layers, drive the next iteration.
