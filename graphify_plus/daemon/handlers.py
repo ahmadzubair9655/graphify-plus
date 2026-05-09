@@ -468,6 +468,38 @@ def plan(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     return {"results": [], "more_available": 0, "extra": {"plan": p.to_dict()}}
 
 
+def onboard(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Onboarding walkthrough — Sprint 10.2.
+
+    Returns a structured tour: top central nodes, well-tested exemplars,
+    and one representative symbol per top-level module. Renderers turn
+    this into the Markdown a new contributor reads on day one.
+    """
+    from .onboarding import make_plan as _make_onboarding
+
+    persona = (args.get("persona") or "engineer").strip()
+    plan = _make_onboarding(graph, persona=persona)
+    return {"results": [], "more_available": 0, "extra": {"onboarding": plan.to_dict()}}
+
+
+def review(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """PR review co-pilot — Sprint 10.1.
+
+    Composes the touched-symbols set, central-touched, untested-touched,
+    rules violations, and blast radius into a single structured report
+    that callers can post as a PR comment. ``args`` accepts ``base`` and
+    ``head`` git refs (defaults: ``main`` and ``HEAD``); pass
+    ``diff_text`` directly to skip the git invocation (test-friendly).
+    """
+    from .review import make_review as _make_review
+
+    base = (args.get("base") or "main").strip()
+    head = (args.get("head") or "HEAD").strip()
+    diff_text = args.get("diff_text")
+    rev = _make_review(graph, base=base, head=head, diff_text=diff_text)
+    return {"results": [], "more_available": 0, "extra": {"review": rev.to_dict()}}
+
+
 def rules_check(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     """Run the architectural-drift rules from ``.graphify_plus/rules.yaml``.
 
@@ -728,6 +760,10 @@ HANDLERS = {
     "coverage_summary": coverage_summary,
     # Sprint 9.4 — architectural-drift rules:
     "rules_check": rules_check,
+    # Sprint 10.1 — PR review co-pilot:
+    "review": review,
+    # Sprint 10.2 — onboarding walkthrough:
+    "onboard": onboard,
     "graph_stats": graph_stats,
 }
 

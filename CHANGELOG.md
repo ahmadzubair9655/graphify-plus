@@ -41,6 +41,26 @@ All notable changes to graphify-plus.
   Claude sees the in-context win for using the graph
   (`[graphify-plus] who_calls · 0.05ms · 38 tokens · would have taken
   ~3 grep calls + 1 file reads`).
+- **PR review co-pilot** (`graphify_plus/daemon/review.py`,
+  `gp daemon review`). Layer 10.1: composes the diff against the graph
+  to produce a Markdown report with **symbols touched** (with file:line),
+  **central nodes touched** (top-50 PageRank), **untested code touched**
+  (coverage ≤10%), **architectural rule violations** (with severity and
+  file:line), and **blast radius** (direct dependents not in the diff).
+  Generates a one-paragraph structural summary suitable as a PR
+  description ("Changes touch 21 symbol(s) across 4 file(s). 6 touched
+  node(s) have ≤10% test coverage — add tests before merge."). Also
+  available via the `review` daemon op and the `gp_review` MCP tool.
+  CLI uses GitPython (already a dep) for `--base`/`--head` ref
+  resolution; falls back to `git diff` subprocess if GitPython errors.
+- **Onboarding mode** (`graphify_plus/daemon/onboarding.py`,
+  `gp daemon onboard`). Layer 10.2: generates a guided-tour Markdown
+  document for new contributors — top central concepts (auto-sized to
+  the codebase: 3 stops for tiny repos, up to 10 for real ones),
+  well-tested exemplars (high coverage AND high PageRank), and one
+  exemplar per top-level module. Also available via the `onboard`
+  daemon op and the `gp_onboard` MCP tool. Supports `--persona` for
+  audience tagging.
 - **Test-coverage overlay** (`graphify_plus/daemon/coverage.py`,
   `gp daemon coverage {ingest|summary|untested}`). Layer 7.1 of the
   master plan — "the single feature that makes graphify-plus required

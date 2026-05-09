@@ -332,6 +332,92 @@ def rules_check_cmd(repo: Path, as_json: bool, fail_on_error: bool) -> None:
         sys.exit(1)
 
 
+@daemon_cmd.command("onboard")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--persona", default="engineer", help="Audience for the tour.")
+@click.option("--json", "as_json", is_flag=True)
+def onboard_cmd(repo: Path, persona: str, as_json: bool) -> None:
+    """Generate an onboarding walkthrough for a new contributor.
+
+    Renders top central nodes, well-tested exemplars, and per-module
+    starting points as a single Markdown document. Pipe into a wiki page
+    or paste into a CONTRIBUTING.md.
+    """
+    from ...daemon.onboarding import OnboardingPlan, WalkStop, format_plan
+
+    repo = repo.resolve()
+    payload = _route_intent(repo, "onboard", {"persona": persona})
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    body = payload.get("extra", {}).get("onboarding")
+    if not body:
+        raise click.ClickException("onboard returned no payload")
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+        return
+    plan = OnboardingPlan(
+        repo=body.get("repo", repo.name),
+        persona=body.get("persona", persona),
+        n_symbols=int(body.get("n_symbols", 0)),
+        n_files=int(body.get("n_files", 0)),
+        central=[WalkStop(**s) for s in body.get("central", [])],
+        welltested_examples=[WalkStop(**s) for s in body.get("welltested_examples", [])],
+        by_module={
+            k: [WalkStop(**s) for s in v] for k, v in (body.get("by_module") or {}).items()
+        },
+    )
+    click.echo(format_plan(plan))
+
+
+@daemon_cmd.command("review")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--base", default="main", help="Git ref to compare against.")
+@click.option("--head", default="HEAD", help="Git ref to review.")
+@click.option("--json", "as_json", is_flag=True)
+def review_cmd(repo: Path, base: str, head: str, as_json: bool) -> None:
+    """PR review co-pilot — symbols touched, central-touched, untested touched,
+    rules violations, blast radius. Markdown by default; ``--json`` for tools.
+    """
+    from ...daemon.review import (
+        Review,
+        TouchedNode,
+        format_review,
+    )
+
+    repo = repo.resolve()
+    payload = _route_intent(repo, "review", {"base": base, "head": head})
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    body = payload.get("extra", {}).get("review")
+    if not body:
+        raise click.ClickException("review returned no payload")
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+        return
+    rev = Review(
+        base=body.get("base", base),
+        head=body.get("head", head),
+        files_changed=body.get("files_changed", 0),
+        files_renamed=body.get("files_renamed", 0),
+        touched=[TouchedNode(**n) for n in body.get("touched", [])],
+        untested_touched=[TouchedNode(**n) for n in body.get("untested_touched", [])],
+        central_touched=[TouchedNode(**n) for n in body.get("central_touched", [])],
+        rules_violations=list(body.get("rules_violations", [])),
+        rules_grade=body.get("rules_grade", "A"),
+        blast_radius=[TouchedNode(**n) for n in body.get("blast_radius", [])],
+        summary=body.get("summary", ""),
+    )
+    click.echo(format_review(rev))
+
+
 @daemon_cmd.command("plan")
 @click.argument("task")
 @click.option(

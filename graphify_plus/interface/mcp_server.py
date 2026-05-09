@@ -355,6 +355,16 @@ def tool_rules_check(args: dict[str, Any]) -> dict[str, Any]:
     return _run_intent("rules_check", args)
 
 
+def tool_review(args: dict[str, Any]) -> dict[str, Any]:
+    """PR review co-pilot — touched/central/untested + rules + blast radius."""
+    return _run_intent("review", args)
+
+
+def tool_onboard(args: dict[str, Any]) -> dict[str, Any]:
+    """Onboarding walkthrough — central nodes + per-module exemplars."""
+    return _run_intent("onboard", args)
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -382,6 +392,10 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_coverage_summary": tool_coverage_summary,
     # Sprint 9.4 — architectural drift rules:
     "gp_rules_check": tool_rules_check,
+    # Sprint 10.1 — PR review co-pilot:
+    "gp_review": tool_review,
+    # Sprint 10.2 — onboarding walkthrough:
+    "gp_onboard": tool_onboard,
 }
 
 
@@ -477,4 +491,6 @@ __all__ = [
     "tool_coverage_for",
     "tool_coverage_summary",
     "tool_rules_check",
+    "tool_review",
+    "tool_onboard",
 ]
