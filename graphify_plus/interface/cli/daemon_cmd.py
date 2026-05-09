@@ -332,6 +332,325 @@ def rules_check_cmd(repo: Path, as_json: bool, fail_on_error: bool) -> None:
         sys.exit(1)
 
 
+@daemon_cmd.group("ingest")
+def ingest_group() -> None:
+    """External-source ingestors (`gp daemon ingest adr|github`)."""
+
+
+@ingest_group.command("adr")
+@click.argument("folder", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def ingest_adr_cmd(folder: Path, repo: Path) -> None:
+    """Ingest ADRs from a folder of Markdown files."""
+    from ...daemon.ingestors import ingest_adr
+    from ...runtime.store import Store, cache_path as _cache_path
+
+    repo = repo.resolve()
+    if not _cache_path(repo).exists():
+        raise click.ClickException(
+            f"no graph cache at {_cache_path(repo)} — run `gp init --repo {repo}` first"
+        )
+    store = Store(_cache_path(repo))
+    try:
+        summary = ingest_adr(store, repo, folder)
+    finally:
+        store.close()
+    click.echo(
+        f"ingested {summary['files']} ADR(s), "
+        f"{summary['with_refs']} link to code symbols"
+    )
+    client = DaemonClient(repo)
+    if client.is_running():
+        client.call("refresh")
+
+
+@ingest_group.command("github")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--state", default="all", help="open|closed|all (default: all).")
+@click.option("--limit", default=200, type=int)
+@click.option("--issues/--no-issues", default=True)
+@click.option("--prs/--no-prs", default=True)
+def ingest_github_cmd(repo: Path, state: str, limit: int, issues: bool, prs: bool) -> None:
+    """Ingest GitHub issues + PRs via `gh` (must be authenticated)."""
+    from ...daemon.ingestors import ingest_github
+    from ...runtime.store import Store, cache_path as _cache_path
+
+    repo = repo.resolve()
+    if not _cache_path(repo).exists():
+        raise click.ClickException(
+            f"no graph cache at {_cache_path(repo)} — run `gp init --repo {repo}` first"
+        )
+    store = Store(_cache_path(repo))
+    try:
+        summary = ingest_github(
+            store, repo, issues=issues, prs=prs, state=state, limit=limit
+        )
+    finally:
+        store.close()
+    click.echo(
+        f"ingested {summary['issues']} issue(s) and {summary['prs']} PR(s)"
+    )
+    client = DaemonClient(repo)
+    if client.is_running():
+        client.call("refresh")
+
+
+@daemon_cmd.group("plugin")
+def plugin_group() -> None:
+    """Manage third-party plugins (`gp daemon plugin list`)."""
+
+
+@plugin_group.command("list")
+@click.option("--json", "as_json", is_flag=True)
+def plugin_list_cmd(as_json: bool) -> None:
+    """List discovered plugins and what they registered."""
+    from ...daemon.plugins import get_registry
+
+    reg = get_registry()
+    body: dict[str, Any] = {
+        "plugins": list(reg.metadata.keys()),
+        "handlers": list(reg.handlers.keys()),
+        "ingestors": list(reg.ingestors.keys()),
+    }
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+        return
+    if not body["plugins"]:
+        click.echo("no plugins installed")
+        click.echo(
+            "  declare an entry point under "
+            f"`graphify_plus.plugins` to register handlers/ingestors"
+        )
+        return
+    for name in body["plugins"]:
+        click.echo(f"  {name}")
+        for k in reg.metadata.get(name, {}):
+            click.echo(f"    - {k}")
+
+
+@daemon_cmd.command("cross-stack")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--rebuild", is_flag=True, help="Re-detect cross-stack edges first.")
+@click.option("--node", default="", help="Show edges for a specific symbol.")
+@click.option("--json", "as_json", is_flag=True)
+def cross_stack_cmd(repo: Path, rebuild: bool, node: str, as_json: bool) -> None:
+    """HTTP boundary + DB schema edges (Layer 8).
+
+    With ``--rebuild``, re-runs detection across all source files and
+    persists. Without arguments, prints repo-wide stats. With
+    ``--node``, prints inbound + outbound cross edges for the symbol.
+    """
+    from ...runtime.store import Store, cache_path as _cache_path
+
+    repo = repo.resolve()
+    if not _cache_path(repo).exists():
+        raise click.ClickException(
+            f"no graph cache at {_cache_path(repo)} — run `gp init --repo {repo}` first"
+        )
+    if rebuild:
+        from ...daemon.cross_stack import synthesise
+
+        store = Store(_cache_path(repo))
+        try:
+            summary = synthesise(store, repo)
+        finally:
+            store.close()
+        click.echo(
+            f"detected {summary['http_backends']} backend(s), "
+            f"{summary['http_callers']} caller(s) → {summary['http_edges']} HTTP edge(s); "
+            f"{summary['db_tables']} table(s) → {summary['db_edges']} DB edge(s)"
+        )
+        client = DaemonClient(repo)
+        if client.is_running():
+            client.call("refresh")
+        return
+
+    args: dict[str, Any] = {}
+    if node:
+        args["node"] = node
+    payload = _route_intent(repo, "cross_stack", args)
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    extra = payload.get("extra", {})
+    if not node:
+        click.echo(f"# {extra.get('total', 0)} cross-stack edge(s)")
+        for kind, n in (extra.get("by_kind") or {}).items():
+            click.echo(f"  {kind:<10} {n}")
+        return
+    rows = payload.get("results", [])
+    if not rows:
+        click.echo(extra.get("reason", "no cross-stack edges"))
+        return
+    for row in rows:
+        d = row.get("detail") or {}
+        click.echo(
+            f"  [{row.get('kind', '?')}] {row.get('direction', '?'):<3} "
+            f"{row.get('src', '?')} → {row.get('dst', '?')}"
+        )
+        for k, v in d.items():
+            click.echo(f"      {k}: {v}")
+
+
+@daemon_cmd.group("security")
+def security_group() -> None:
+    """CVE + SAST overlays (`gp daemon security ingest|ingest-sast|vulnerable|risky`)."""
+
+
+@security_group.command("ingest")
+@click.argument("report", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def security_ingest_audit_cmd(report: Path, repo: Path) -> None:
+    """Ingest a pip-audit / npm-audit JSON report (CVE overlay)."""
+    from ...daemon.overlays import ingest_audit
+    from ...runtime.store import Store, cache_path as _cache_path
+
+    repo = repo.resolve()
+    if not _cache_path(repo).exists():
+        raise click.ClickException(
+            f"no graph cache at {_cache_path(repo)} — run `gp init --repo {repo}` first"
+        )
+    store = Store(_cache_path(repo))
+    try:
+        summary = ingest_audit(store, repo, report)
+    finally:
+        store.close()
+    click.echo(
+        f"ingested {report.name} ({summary['format']}): "
+        f"{summary['cves']} CVE(s), {summary['packages']} package(s)"
+    )
+    client = DaemonClient(repo)
+    if client.is_running():
+        client.call("refresh")
+
+
+@security_group.command("ingest-sast")
+@click.argument("report", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def security_ingest_sast_cmd(report: Path, repo: Path) -> None:
+    """Ingest a Bandit / Semgrep JSON report (SAST overlay)."""
+    from ...daemon.overlays import ingest_sast
+    from ...runtime.store import Store, cache_path as _cache_path
+
+    repo = repo.resolve()
+    if not _cache_path(repo).exists():
+        raise click.ClickException(
+            f"no graph cache at {_cache_path(repo)} — run `gp init --repo {repo}` first"
+        )
+    store = Store(_cache_path(repo))
+    try:
+        summary = ingest_sast(store, repo, report)
+    finally:
+        store.close()
+    by_sev = ", ".join(f"{k}={v}" for k, v in summary["by_severity"].items())
+    click.echo(
+        f"ingested {report.name} ({summary['format']}): "
+        f"{summary['findings']} finding(s), {summary['attributed']} attributed "
+        f"({by_sev})"
+    )
+    client = DaemonClient(repo)
+    if client.is_running():
+        client.call("refresh")
+
+
+@security_group.command("vulnerable")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--severity", default="", help="Floor: CRITICAL/HIGH/MEDIUM/LOW (default: all).")
+@click.option("--json", "as_json", is_flag=True)
+def security_vulnerable_cmd(repo: Path, severity: str, as_json: bool) -> None:
+    """List symbols reachable from CVE-affected packages."""
+    repo = repo.resolve()
+    payload = _route_intent(
+        repo, "whats_vulnerable", {"severity": severity, "budget_tokens": 4000}
+    )
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    rows = payload.get("results", [])
+    extra = payload.get("extra", {})
+    if not rows:
+        click.echo(extra.get("reason", "no reachable CVEs"))
+        return
+    click.echo(
+        f"# {len(rows)} symbol(s) reach {extra.get('total_cves', 0)} CVE(s) "
+        f"across {extra.get('reachable_symbols', 0)} package import path(s)"
+    )
+    for row in rows:
+        cves = row.get("vulnerabilities") or []
+        click.echo(
+            f"  [{row.get('worst_severity', '?'):<8}] {row.get('label', '?')}  "
+            f"{row.get('source_file', '?')}:{row.get('line_number', 0)}"
+        )
+        for c in cves[:3]:
+            click.echo(
+                f"    - {c.get('cve_id', '?')} in {c.get('package', '?')} "
+                f"{c.get('version', '?')}: {c.get('summary', '')[:120]}"
+            )
+
+
+@security_group.command("risky")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--severity", default="", help="Floor: HIGH/MEDIUM/LOW (default: all).")
+@click.option("--json", "as_json", is_flag=True)
+def security_risky_cmd(repo: Path, severity: str, as_json: bool) -> None:
+    """List symbols with attached SAST findings."""
+    repo = repo.resolve()
+    payload = _route_intent(
+        repo, "whats_risky", {"severity": severity, "budget_tokens": 4000}
+    )
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    rows = payload.get("results", [])
+    if not rows:
+        click.echo(payload.get("extra", {}).get("reason", "no risky symbols"))
+        return
+    for row in rows:
+        click.echo(
+            f"  [{row.get('worst_severity', '?'):<8}] {row.get('label', '?')}  "
+            f"{row.get('source_file', '?')}:{row.get('line_number', 0)}  "
+            f"({row.get('n_findings', 0)} finding(s))"
+        )
+        for f in (row.get("sast_findings") or [])[:3]:
+            click.echo(
+                f"    - {f.get('rule_id', '?')}: {f.get('message', '')[:120]}"
+            )
+
+
 @daemon_cmd.command("session-digest")
 @click.option(
     "--repo",

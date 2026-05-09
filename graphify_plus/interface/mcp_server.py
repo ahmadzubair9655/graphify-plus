@@ -370,6 +370,21 @@ def tool_session_digest(args: dict[str, Any]) -> dict[str, Any]:
     return _run_intent("session_digest", args)
 
 
+def tool_whats_vulnerable(args: dict[str, Any]) -> dict[str, Any]:
+    """CVEs reachable from application code (Layer 9.1)."""
+    return _run_intent("whats_vulnerable", args)
+
+
+def tool_whats_risky(args: dict[str, Any]) -> dict[str, Any]:
+    """SAST findings attached to symbols (Layer 9.2)."""
+    return _run_intent("whats_risky", args)
+
+
+def tool_why_does_this_exist(args: dict[str, Any]) -> dict[str, Any]:
+    """ADRs / issues / PRs that mention this symbol (Layer 6.1 + 6.3)."""
+    return _run_intent("why_does_this_exist", args)
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -403,6 +418,11 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_onboard": tool_onboard,
     # Layer 13.3 — post-session digest:
     "gp_session_digest": tool_session_digest,
+    # Layer 9 — security overlays:
+    "gp_whats_vulnerable": tool_whats_vulnerable,
+    "gp_whats_risky": tool_whats_risky,
+    # Layer 6 — external-source ingest:
+    "gp_why_does_this_exist": tool_why_does_this_exist,
 }
 
 
@@ -501,4 +521,7 @@ __all__ = [
     "tool_review",
     "tool_onboard",
     "tool_session_digest",
+    "tool_whats_vulnerable",
+    "tool_whats_risky",
+    "tool_why_does_this_exist",
 ]

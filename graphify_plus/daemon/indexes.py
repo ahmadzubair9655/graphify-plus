@@ -102,6 +102,19 @@ class InMemoryGraph:
     # Symbol-level coverage attribution (Sprint 8). Empty when no
     # coverage has been ingested via ``gp daemon coverage ingest``.
     coverage: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Layer 9.1 — CVE rows reachable from each symbol_id (best-effort
+    # qname-prefix attribution, populated from the ``cve`` table).
+    cves_by_symbol: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    cve_rows: list[dict[str, Any]] = field(default_factory=list)
+    # Layer 9.2 — SAST findings keyed by symbol_id.
+    sast_by_symbol: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # Layer 6 — external-source ingest nodes (issues, PRs, ADRs).
+    ingest_nodes: list[dict[str, Any]] = field(default_factory=list)
+    ingest_refs: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # Layer 8 — cross-stack edges (HTTP boundary, DB schema).
+    cross_edges: list[dict[str, Any]] = field(default_factory=list)
+    cross_edges_by_src: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    cross_edges_by_dst: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     repo_root: Path = field(default_factory=lambda: Path("."))
     built_at: float = 0.0
     freshness_token: str = ""
@@ -134,6 +147,36 @@ class InMemoryGraph:
         except Exception as exc:  # noqa: BLE001
             log.debug("coverage overlay unavailable: %s", exc)
             snap.coverage = {}
+        # CVE / SAST overlays — same opt-in pattern.
+        try:
+            from .overlays import cve_reach_map, load_cve, load_sast
+
+            snap.cve_rows = load_cve(store)
+            if snap.cve_rows:
+                snap.cves_by_symbol = cve_reach_map(snap.cve_rows, symbols)
+            snap.sast_by_symbol = load_sast(store)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("security overlays unavailable: %s", exc)
+        # External-source ingest (issues, PRs, ADRs).
+        try:
+            from .ingestors import load_ingest_nodes
+
+            snap.ingest_nodes = load_ingest_nodes(store)
+            for node in snap.ingest_nodes:
+                for sid in node.get("refs", []):
+                    snap.ingest_refs.setdefault(sid, []).append(node)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("ingest overlay unavailable: %s", exc)
+        # Cross-stack edges (HTTP, DB).
+        try:
+            from .cross_stack import load_cross_edges
+
+            snap.cross_edges = load_cross_edges(store)
+            for edge in snap.cross_edges:
+                snap.cross_edges_by_src.setdefault(edge["src"], []).append(edge)
+                snap.cross_edges_by_dst.setdefault(edge["dst"], []).append(edge)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("cross-stack edges unavailable: %s", exc)
         snap.stats = IndexBuildStats(
             elapsed_ms=(time.perf_counter() - t0) * 1000.0,
             symbols=len(symbols),

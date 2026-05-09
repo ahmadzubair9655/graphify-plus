@@ -468,6 +468,208 @@ def plan(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     return {"results": [], "more_available": 0, "extra": {"plan": p.to_dict()}}
 
 
+def cross_stack(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Cross-stack edges (HTTP boundary, DB schema) touching a symbol.
+
+    Layer 8: returns inbound + outbound cross-stack edges so callers can
+    answer questions like "which frontend code breaks if I rename this
+    endpoint?" or "what code touches the users table?". With no
+    arguments, returns repo-wide cross-edge stats.
+    """
+    sid_arg = (args.get("node") or args.get("node_id") or "").strip()
+    if not sid_arg:
+        # Repo-wide summary.
+        by_kind: dict[str, int] = {}
+        for e in graph.cross_edges:
+            by_kind[e.get("kind", "?")] = by_kind.get(e.get("kind", "?"), 0) + 1
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {"total": len(graph.cross_edges), "by_kind": by_kind},
+        }
+    sid, ambig = _resolve_symbol(graph, args)
+    if ambig is not None:
+        return ambig
+    rows: list[dict[str, Any]] = []
+    for e in graph.cross_edges_by_src.get(sid, []):
+        rows.append({"direction": "out", **e})
+    for e in graph.cross_edges_by_dst.get(sid, []):
+        rows.append({"direction": "in", **e})
+    if not rows:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {"reason": "no cross-stack edges for this symbol"},
+        }
+    budget = int(args.get("budget_tokens") or DEFAULT_BUDGET_TOKENS)
+    kept, more = _budget_clip(rows, budget)
+    return {"results": kept, "more_available": more, "extra": {"target": sid}}
+
+
+def why_does_this_exist(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Return ADRs / issues / PRs that mention the target symbol.
+
+    Layer 6.1 + 6.3: turns the structural "this function looks weird"
+    question into the answer: "PR #847 added it as a fix for issue
+    #812 (Stripe webhook race condition)." Limited to the cheap path
+    — body-text matching on names, since deeper attribution requires
+    actually following commit-to-symbol traces.
+    """
+    sid, ambig = _resolve_symbol(graph, args)
+    if ambig is not None:
+        return ambig
+    nodes = graph.ingest_refs.get(sid, [])
+    if not nodes:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {
+                "reason": (
+                    "no issue / PR / ADR mentions this symbol — try "
+                    "`gp daemon ingest github` or `gp daemon ingest adr`"
+                ),
+            },
+        }
+    rows: list[dict[str, Any]] = []
+    for node in nodes:
+        rows.append(
+            {
+                "node_id": node.get("id"),
+                "kind": node.get("kind"),
+                "title": node.get("title"),
+                "url": node.get("url"),
+                "state": node.get("state"),
+                "source": node.get("source"),
+                "snippet": (node.get("body") or "")[:200],
+            }
+        )
+    rows.sort(key=lambda r: (r.get("kind", ""), r.get("node_id", "")))
+    budget = int(args.get("budget_tokens") or DEFAULT_BUDGET_TOKENS)
+    kept, more = _budget_clip(rows, budget)
+    return {"results": kept, "more_available": more, "extra": {"target": sid}}
+
+
+def whats_vulnerable(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """List CVEs reachable from the application code.
+
+    Returns one row per symbol that imports a vulnerable package, with
+    the CVE list inlined. Master plan Layer 9.1: "CVE-2025-12345 in
+    `requests` is reached via `auth_service.fetch_token`."
+    """
+    if not graph.cve_rows:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {
+                "reason": (
+                    "no audit data ingested — run `pip-audit -f json -o audit.json` "
+                    "then `gp daemon security ingest audit.json`"
+                )
+            },
+        }
+    severity_floor = (args.get("severity") or "").upper()
+    min_rank = _SEVERITY_RANK.get(severity_floor, 0)
+    budget = int(args.get("budget_tokens") or DEFAULT_BUDGET_TOKENS)
+    rows: list[dict[str, Any]] = []
+    for sid, cves in graph.cves_by_symbol.items():
+        sym = graph.by_id.get(sid)
+        if not sym:
+            continue
+        applicable = [
+            c for c in cves if _SEVERITY_RANK.get((c.get("severity") or "").upper(), 0) >= min_rank
+        ]
+        if not applicable:
+            continue
+        rows.append(
+            _format_node(
+                sym,
+                vulnerabilities=applicable,
+                worst_severity=max(
+                    (c["severity"] for c in applicable),
+                    key=lambda s: _SEVERITY_RANK.get(s, 0),
+                    default="UNKNOWN",
+                ),
+            )
+        )
+    rows.sort(
+        key=lambda r: (-_SEVERITY_RANK.get(r.get("worst_severity", "UNKNOWN"), 0), r["label"])
+    )
+    kept, more = _budget_clip(rows, budget)
+    return {
+        "results": kept,
+        "more_available": more,
+        "extra": {
+            "total_cves": len(graph.cve_rows),
+            "reachable_symbols": len(graph.cves_by_symbol),
+        },
+    }
+
+
+def whats_risky(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """SAST findings — symbols with attached static-analysis warnings.
+
+    Layer 9.2: integrates Bandit / Semgrep output into the same graph.
+    The structural-risk check from `simulate` keeps its own command;
+    this is the *security-risk* counterpart.
+    """
+    if not graph.sast_by_symbol:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {
+                "reason": (
+                    "no SAST findings ingested — run `bandit -f json -o sast.json` or "
+                    "`semgrep --json > sast.json`, then "
+                    "`gp daemon security ingest-sast sast.json`"
+                )
+            },
+        }
+    severity_floor = (args.get("severity") or "").upper()
+    min_rank = _SEVERITY_RANK.get(severity_floor, 0)
+    budget = int(args.get("budget_tokens") or DEFAULT_BUDGET_TOKENS)
+    rows: list[dict[str, Any]] = []
+    for sid, findings in graph.sast_by_symbol.items():
+        sym = graph.by_id.get(sid)
+        if not sym:
+            continue
+        applicable = [
+            f for f in findings if _SEVERITY_RANK.get((f.get("severity") or "").upper(), 0) >= min_rank
+        ]
+        if not applicable:
+            continue
+        rows.append(
+            _format_node(
+                sym,
+                sast_findings=applicable,
+                worst_severity=max(
+                    (f["severity"] for f in applicable),
+                    key=lambda s: _SEVERITY_RANK.get(s, 0),
+                    default="UNKNOWN",
+                ),
+                n_findings=len(applicable),
+            )
+        )
+    rows.sort(
+        key=lambda r: (-_SEVERITY_RANK.get(r.get("worst_severity", "UNKNOWN"), 0), -r["n_findings"])
+    )
+    kept, more = _budget_clip(rows, budget)
+    return {"results": kept, "more_available": more}
+
+
+_SEVERITY_RANK = {
+    "CRITICAL": 50,
+    "HIGH": 40,
+    "ERROR": 40,
+    "MEDIUM": 30,
+    "WARNING": 25,
+    "MODERATE": 30,
+    "LOW": 20,
+    "INFO": 10,
+    "UNKNOWN": 5,
+    "": 0,
+}
+
+
 def session_digest(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     """Post-session digest — Layer 13.3.
 
@@ -781,8 +983,39 @@ HANDLERS = {
     "onboard": onboard,
     # Layer 13.3 — post-session digest:
     "session_digest": session_digest,
+    # Layer 9 — security overlays:
+    "whats_vulnerable": whats_vulnerable,
+    "whats_risky": whats_risky,
+    # Layer 6 — external-source ingest:
+    "why_does_this_exist": why_does_this_exist,
+    # Layer 8 — cross-stack edges:
+    "cross_stack": cross_stack,
     "graph_stats": graph_stats,
 }
+
+
+# Layer 11.2 — third-party plugins. Discovery happens lazily on first
+# import so test packages can patch ``reset_registry_for_tests`` before
+# the daemon comes up. Plugin-provided handlers are merged into the
+# main HANDLERS dict but never override built-ins (first registration
+# wins, with a warning logged).
+def _merge_plugin_handlers() -> None:
+    try:
+        from .plugins import get_registry
+
+        for op, fn in get_registry().handlers.items():
+            if op in HANDLERS:
+                continue  # built-in always wins
+            HANDLERS[op] = fn
+    except Exception as exc:  # noqa: BLE001
+        import logging as _logging
+
+        _logging.getLogger("graphify_plus.daemon.handlers").debug(
+            "plugin merge failed: %s", exc
+        )
+
+
+_merge_plugin_handlers()
 
 
 __all__ = [

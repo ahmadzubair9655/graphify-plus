@@ -41,6 +41,61 @@ All notable changes to graphify-plus.
   Claude sees the in-context win for using the graph
   (`[graphify-plus] who_calls · 0.05ms · 38 tokens · would have taken
   ~3 grep calls + 1 file reads`).
+- **`gp daemon diagnose`** (Layer 12.4,
+  `graphify_plus/daemon/diagnose.py`). One-screen operational status:
+  daemon liveness/pid/socket/uptime, cache size + schema_version + last
+  modified, snapshot stats (live from daemon when running, fresh build
+  otherwise), coverage state, rules state, last-hour telemetry
+  breakdown with top-5 ops, process RSS (psutil opt-in with
+  `resource.getrusage` fallback). Markdown by default, `--json` for
+  tooling.
+- **`gp daemon session-digest`** (Layer 13.3,
+  `graphify_plus/daemon/session_digest.py`). Composes review +
+  repo-wide coverage + rules into a single Markdown PR-description
+  block: what changed (structural summary + symbols touched), rules
+  bent (severity-grouped), now-untested code, derived next steps. Also
+  the `session_digest` daemon op and the `gp_session_digest` MCP tool.
+- **CVE overlay** (Layer 9.1, `graphify_plus/daemon/overlays.py`).
+  Parses `pip-audit -f json` and `npm audit --json`. Each
+  vulnerability persists in a new `cve` table. The
+  `whats_vulnerable(severity?)` handler returns the symbols whose
+  qualified-name reaches a vulnerable package, sorted by worst
+  severity. Also the `gp daemon security {ingest,vulnerable}` CLI
+  and the `gp_whats_vulnerable` MCP tool.
+- **SAST overlay** (Layer 9.2). Parses Bandit and Semgrep JSON. Each
+  finding maps to the deepest containing symbol (same pattern as
+  coverage) and persists in a new `sast` table. The
+  `whats_risky(severity?)` handler returns symbols carrying findings,
+  sorted worst-first. Also the `gp daemon security {ingest-sast,risky}`
+  CLI and the `gp_whats_risky` MCP tool.
+- **GitHub + ADR ingestors** (Layer 6.1 + 6.3,
+  `graphify_plus/daemon/ingestors.py`). `gp daemon ingest github` pulls
+  issues + PRs via `gh` (inherits the user's auth — no separate token
+  flow); `gp daemon ingest adr <folder>` walks an ADR Markdown folder.
+  Both populate a new `ingest_nodes` table; refs are attributed to
+  symbols by qualified-name + short-name match. The new
+  `why_does_this_exist(node)` handler / `gp_why_does_this_exist` MCP
+  tool returns the issue/PR/ADR rows that mention the symbol — the
+  master plan's "PR #847 added it as a fix for issue #812" use case.
+- **HTTP boundary edges** (Layer 8.1,
+  `graphify_plus/daemon/cross_stack.py`). Detects backend route
+  decorators (Flask / FastAPI / Express / Django) and frontend call
+  sites (`fetch`, `axios`, `$.ajax`, `$.<verb>`), matches by
+  `(method, url)` modulo wildcard route params, persists as
+  `cross_edges` rows of kind `http`. The new `cross_stack` handler
+  returns inbound + outbound cross-edges for a given symbol.
+  `gp daemon cross-stack --rebuild` re-detects in a single pass.
+- **DB schema edges** (Layer 8.2). Walks `.sql` files for `CREATE
+  TABLE` / `CREATE VIEW`, walks ORM model classes for `__tablename__` /
+  `Meta.db_table` / snake-case fallback, emits `cross_edges` rows of
+  kind `db`. Cross-rebuild covers both kinds in one pass.
+- **Plugin architecture** (Layer 11.2,
+  `graphify_plus/daemon/plugins.py`). Third-party packages register
+  custom handlers / ingestors via the `graphify_plus.plugins` entry
+  point. Plugin handlers merge into `HANDLERS` at startup but never
+  override built-ins (first-registration-wins, with a warning). Broken
+  plugins are logged and skipped — never crash the daemon.
+  `gp daemon plugin list` shows what's discovered.
 - **PR review co-pilot** (`graphify_plus/daemon/review.py`,
   `gp daemon review`). Layer 10.1: composes the diff against the graph
   to produce a Markdown report with **symbols touched** (with file:line),
