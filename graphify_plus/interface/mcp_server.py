@@ -385,6 +385,11 @@ def tool_why_does_this_exist(args: dict[str, Any]) -> dict[str, Any]:
     return _run_intent("why_does_this_exist", args)
 
 
+def tool_gpl_query(args: dict[str, Any]) -> dict[str, Any]:
+    """Run a GPL (Graphify-Plus Query Language) query (Layer 16)."""
+    return _run_intent("gpl_query", args)
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -423,6 +428,8 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_whats_risky": tool_whats_risky,
     # Layer 6 — external-source ingest:
     "gp_why_does_this_exist": tool_why_does_this_exist,
+    # Layer 16 — query language:
+    "gp_gpl_query": tool_gpl_query,
 }
 
 

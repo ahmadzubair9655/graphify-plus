@@ -488,6 +488,59 @@ def plugin_list_cmd(as_json: bool) -> None:
             click.echo(f"    - {k}")
 
 
+@daemon_cmd.command("gpl")
+@click.argument("query", required=False, default="")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--nl", default="", help="Natural-language query; translated to GPL.")
+@click.option("--save", default="", help="Save the query under this name.")
+@click.option("--run", default="", help="Run a previously-saved query by name.")
+@click.option("--json", "as_json", is_flag=True)
+def gpl_cmd(
+    query: str, repo: Path, nl: str, save: str, run: str, as_json: bool
+) -> None:
+    """Run a GPL query (Layer 16).
+
+    Examples:
+      gp daemon gpl "FIND nodes WHERE test_coverage < 0.1"
+      gp daemon gpl --nl "untested public api functions"
+      gp daemon gpl --save untested-funcs "FIND nodes WHERE test_coverage < 0.1"
+      gp daemon gpl --run untested-funcs
+    """
+    repo = repo.resolve()
+    saved_dir = repo / ".graphify_plus" / "queries"
+    if save and query:
+        saved_dir.mkdir(parents=True, exist_ok=True)
+        (saved_dir / f"{save}.gpl").write_text(query, encoding="utf-8")
+        click.echo(f"saved query: {saved_dir / (save + '.gpl')}")
+        return
+    if run:
+        path = saved_dir / f"{run}.gpl"
+        if not path.exists():
+            raise click.ClickException(f"no saved query named {run!r}")
+        query = path.read_text(encoding="utf-8")
+    args: dict[str, Any] = {}
+    if query:
+        args["query"] = query
+    if nl:
+        args["nl"] = nl
+    payload = _route_intent(repo, "gpl_query", args)
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    extra = payload.get("extra", {})
+    if "nl_to_gpl" in extra:
+        click.echo(f"# translated: {extra['nl_to_gpl']}")
+    click.echo(f"# {extra.get('count', 0)} match(es)")
+    for row in payload.get("results", []):
+        click.echo("  " + "  ".join(f"{k}={v!r}" for k, v in row.items()))
+
+
 @daemon_cmd.command("cross-stack")
 @click.option(
     "--repo",

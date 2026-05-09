@@ -425,6 +425,29 @@ def find_by_concept(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any
             _format_node(sym, confidence=round(score / max_score, 3), score=round(score, 3))
             for sym, score in ranked
         ]
+    # Layer 18 — rerank with embeddings when available. If the cheap
+    # path returned 0 hits, fall through to embedding-only search so a
+    # well-installed user gets a real answer for fuzzy queries.
+    if not rows:
+        from .embeddings import search as embedding_search
+
+        emb_hits = embedding_search(graph, query, top_k=top_k)
+        if emb_hits:
+            for sid, score in emb_hits:
+                sym = graph.by_id.get(sid)
+                if sym:
+                    rows.append(
+                        _format_node(
+                            sym,
+                            confidence=round(min(max(score, 0.0), 1.0), 3),
+                            score=round(score, 3),
+                            embedding=True,
+                        )
+                    )
+    elif rows and not heavy:
+        from .embeddings import rerank_or_passthrough
+
+        rows = rerank_or_passthrough(graph, query, rows)
     kept, more = _budget_clip(rows, budget)
     return {"results": kept, "more_available": more}
 
@@ -466,6 +489,45 @@ def plan(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
         }
     p = _make_plan(graph, task, top_k=int(args.get("top_k", 12)))
     return {"results": [], "more_available": 0, "extra": {"plan": p.to_dict()}}
+
+
+def gpl_query(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Run a GPL (Graphify-Plus Query Language) query.
+
+    Layer 16. Args:
+        query: GPL source. Required when ``nl`` not provided.
+        nl: natural-language string; translated to GPL via the
+            deterministic rule-based fallback. Returned as ``extra.nl_to_gpl``
+            so the caller (and Claude) can confirm before re-running.
+    """
+    from .query_lang import QueryError, execute, parse, translate_nl
+
+    src = (args.get("query") or "").strip()
+    nl = (args.get("nl") or "").strip()
+    nl_translation: str | None = None
+    if nl and not src:
+        src = translate_nl(nl)
+        nl_translation = src
+    if not src:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {"reason": "must pass `query` (GPL) or `nl` (natural language)"},
+        }
+    try:
+        q = parse(src)
+        result = execute(graph, q)
+    except QueryError as exc:
+        return {"error": {"code": "BAD_REQUEST", "message": str(exc)}}
+    extra: dict[str, Any] = {
+        "form": result.get("form"),
+        "count": result.get("count", 0),
+    }
+    if nl_translation is not None:
+        extra["nl_to_gpl"] = nl_translation
+    if "count_by" in result:
+        extra["count_by"] = result["count_by"]
+    return {"results": result.get("rows", []), "more_available": 0, "extra": extra}
 
 
 def cross_stack(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
@@ -990,6 +1052,8 @@ HANDLERS = {
     "why_does_this_exist": why_does_this_exist,
     # Layer 8 — cross-stack edges:
     "cross_stack": cross_stack,
+    # Layer 16 — query language:
+    "gpl_query": gpl_query,
     "graph_stats": graph_stats,
 }
 
