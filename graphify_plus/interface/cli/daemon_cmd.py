@@ -895,6 +895,116 @@ def team_conflicts_cmd(root: str, as_json: bool) -> None:
         click.echo(f"  {c['target']}: {c['n_distinct_notes']} distinct notes")
 
 
+@daemon_cmd.group("writeback")
+def writeback_group() -> None:
+    """Session-scoped writeback proposals (Layer 4.2)."""
+
+
+@writeback_group.command("propose")
+@click.argument("target")
+@click.argument("rationale")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def writeback_propose_cmd(target: str, rationale: str, repo: Path) -> None:
+    from ...daemon.writeback_proposals import propose
+
+    p = propose(repo.resolve(), target=target, rationale=rationale)
+    click.echo(f"proposal {p.id} ({p.state})")
+
+
+@writeback_group.command("list")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--state", default="", help="Filter: pending|accepted|rejected.")
+def writeback_list_cmd(repo: Path, state: str) -> None:
+    from ...daemon.writeback_proposals import list_proposals
+
+    rows = list_proposals(repo.resolve(), state=state or None)
+    if not rows:
+        click.echo("no proposals")
+        return
+    for r in rows:
+        click.echo(f"  {r.id}  {r.state:<9}  {r.target}: {r.rationale[:80]}")
+
+
+@writeback_group.command("decide")
+@click.argument("proposal_id")
+@click.option("--accept/--reject", default=True)
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def writeback_decide_cmd(proposal_id: str, accept: bool, repo: Path) -> None:
+    from ...daemon.writeback_proposals import decide
+
+    out = decide(repo.resolve(), proposal_id, accept=accept)
+    if out is None:
+        raise click.ClickException(f"no proposal with id {proposal_id}")
+    click.echo(f"{out.id} → {out.state}")
+
+
+@writeback_group.command("auto-accept")
+@click.option("--enable/--disable", default=True)
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def writeback_auto_accept_cmd(enable: bool, repo: Path) -> None:
+    from ...daemon.writeback_proposals import disable_auto_accept, enable_auto_accept
+
+    if enable:
+        s = enable_auto_accept(repo.resolve())
+    else:
+        s = disable_auto_accept(repo.resolve())
+    click.echo(f"auto_accept = {s.auto_accept}")
+
+
+@daemon_cmd.command("correctness-stats")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def correctness_stats_cmd(repo: Path, as_json: bool) -> None:
+    """Continuous correctness sampling report (Layer 14.4)."""
+    from ...daemon.correctness_sampling import disagreement_rate
+
+    out = disagreement_rate(repo.resolve())
+    if as_json:
+        click.echo(json.dumps(out, indent=2))
+        return
+    click.echo(f"samples: {out['samples']}  disagreement rate: {out.get('rate', 0.0):.1%}")
+    for ext, stats in (out.get("by_extractor") or {}).items():
+        click.echo(f"  {ext}: {stats['disagreed']}/{stats['samples']}")
+
+
+@daemon_cmd.command("notify")
+@click.argument("event")
+@click.argument("title")
+@click.argument("body")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def notify_cmd(event: str, title: str, body: str, repo: Path) -> None:
+    """Dispatch a notification through the configured sinks (Layer 19)."""
+    from ...daemon.notifications import dispatch
+
+    out = dispatch(repo.resolve(), event=event, title=title, body=body)
+    for entry in out:
+        click.echo(json.dumps(entry))
+
+
 @daemon_cmd.command("session-start")
 @click.option(
     "--repo",

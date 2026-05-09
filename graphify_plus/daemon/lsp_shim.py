@@ -146,6 +146,10 @@ class LSPServer:
             return self._hover(params)
         if method == "textDocument/codeLens":
             return self._code_lens(params)
+        if method == "textDocument/publishDiagnostics":
+            return None  # we push, not pull
+        if method == "textDocument/inlineHint" or method == "textDocument/inlayHint":
+            return self._inlay_hints(params)
         if method == "textDocument/definition":
             return self._definition(params)
         if method == "graphifyPlus/statusBar":
@@ -170,6 +174,34 @@ class LSPServer:
             text.append(f"PageRank: {symbol['pagerank']}")
         text.append("\n_(via graphify-plus)_")
         return {"contents": {"kind": "markdown", "value": "\n".join(text)}}
+
+    def _inlay_hints(self, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """Layer 17.2 — inline annotations: untested-warning gutter +
+        public-API indicator. Returned as LSP InlayHint items."""
+        path = self._uri_to_rel(params)
+        try:
+            resp = self.client.call("whats_in", {"path": path, "budget_tokens": 4000})
+        except DaemonNotRunning:
+            return []
+        out: list[dict[str, Any]] = []
+        for r in resp.get("results", []):
+            label_parts: list[str] = []
+            if r.get("coverage_pct") is not None and r["coverage_pct"] <= 10.0:
+                label_parts.append(f"⚠ untested ({r['coverage_pct']}%)")
+            if r.get("pagerank"):
+                label_parts.append("· central")
+            if not label_parts:
+                continue
+            line = max(int(r.get("line_number", 1)) - 1, 0)
+            out.append(
+                {
+                    "position": {"line": line, "character": 0},
+                    "label": "  ".join(label_parts),
+                    "paddingRight": True,
+                    "kind": 1,  # Type hint
+                }
+            )
+        return out
 
     def _code_lens(self, params: dict[str, Any]) -> list[dict[str, Any]]:
         path = self._uri_to_rel(params)

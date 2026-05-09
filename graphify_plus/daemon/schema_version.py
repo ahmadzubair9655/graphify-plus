@@ -75,17 +75,44 @@ def check(payload: dict[str, Any]) -> int:
 def migrate(payload: dict[str, Any], *, target: int = DAEMON_SCHEMA_VERSION) -> dict[str, Any]:
     """Apply registered migrations until the payload is at ``target``.
 
+    Forward (``cur < target``) and backward (``cur > target``) directions
+    are both supported when the appropriate migration is registered.
     Idempotent: payload already at target returns unchanged.
+
+    Layer 21.4 — lossy backward migrations declare what they drop. The
+    migration function returns the body it produced; if any keys were
+    removed, the migration is responsible for surfacing them via
+    ``payload['_lost_in_migration']``.
     """
     cur = int(payload.get("_schema_version", 0))
-    while cur < target:
-        fn = _MIGRATIONS.get((cur, cur + 1))
-        if fn is None:
-            raise SchemaTooOld(f"no migration registered from v{cur} to v{cur + 1}")
-        payload = fn(payload)
-        cur += 1
+    while cur != target:
+        if cur < target:
+            fn = _MIGRATIONS.get((cur, cur + 1))
+            if fn is None:
+                raise SchemaTooOld(f"no migration registered from v{cur} to v{cur + 1}")
+            payload = fn(payload)
+            cur += 1
+        else:
+            fn = _MIGRATIONS.get((cur, cur - 1))
+            if fn is None:
+                raise SchemaTooNew(f"no backward migration from v{cur} to v{cur - 1}")
+            payload = fn(payload)
+            cur -= 1
     payload["_schema_version"] = target
     return payload
+
+
+def declare_lossy(payload: dict[str, Any], *, dropped: list[str]) -> dict[str, Any]:
+    """Helper for backward migrations: record fields that the
+    migration is dropping so the caller can warn the user.
+    """
+    out = dict(payload)
+    out["_lost_in_migration"] = list(dropped)
+    return out
+
+
+def lost_in_migration(payload: dict[str, Any]) -> list[str]:
+    return list(payload.get("_lost_in_migration") or [])
 
 
 def load_artifact(path: Path) -> dict[str, Any]:
@@ -111,7 +138,9 @@ __all__ = [
     "SchemaTooNew",
     "SchemaTooOld",
     "check",
+    "declare_lossy",
     "load_artifact",
+    "lost_in_migration",
     "migrate",
     "register_migration",
     "save_artifact",
