@@ -236,18 +236,12 @@ def compare_revs(repo: Path, rev_a: str, rev_b: str) -> RevisionDelta:
     except Exception as exc:  # noqa: BLE001
         log.debug("compare_revs failed: %s", exc)
         return RevisionDelta(rev_a=rev_a, rev_b=rev_b, files_changed=0, insertions=0, deletions=0)
-    m = re.search(r"(\d+)\s+files?\s+changed", out)
-    files = int(m.group(1)) if m else 0
-    ins = (
-        int((re.search(r"(\d+)\s+insertion", out) or re.match("0", "0")).group(1))
-        if re.search(r"(\d+)\s+insertion", out)
-        else 0
-    )
-    dels = (
-        int((re.search(r"(\d+)\s+deletion", out) or re.match("0", "0")).group(1))
-        if re.search(r"(\d+)\s+deletion", out)
-        else 0
-    )
+    m_files = re.search(r"(\d+)\s+files?\s+changed", out)
+    files = int(m_files.group(1)) if m_files else 0
+    m_ins = re.search(r"(\d+)\s+insertion", out)
+    ins = int(m_ins.group(1)) if m_ins else 0
+    m_dels = re.search(r"(\d+)\s+deletion", out)
+    dels = int(m_dels.group(1)) if m_dels else 0
     paths: list[str] = []
     try:
         names = subprocess.check_output(
@@ -333,7 +327,8 @@ def generate_module_docs(graph: InMemoryGraph, module: str) -> str:
     out.append("")
     out.append("## Files in this module")
     out.append("")
-    for path in sorted({s.get("path") for s in matched if s.get("path")}):
+    file_paths = sorted({str(s.get("path") or "") for s in matched if s.get("path")})
+    for path in file_paths:
         out.append(f"- `{path}`")
     out.append("")
     out.append("---")

@@ -196,18 +196,19 @@ BUILTIN_TINY_CORPUS_JSON = [
 def builtin_tiny_corpus() -> list[BenchmarkEntry]:
     rows: list[BenchmarkEntry] = []
     for raw in BUILTIN_TINY_CORPUS_JSON:
+        entry: dict[str, Any] = dict(raw)  # type: ignore[arg-type]
         rows.append(
             BenchmarkEntry(
-                name=raw["name"],
-                repo_path=raw["repo_path"],
+                name=str(entry["name"]),
+                repo_path=str(entry["repo_path"]),
                 checks=[
                     BenchmarkCheck(
-                        op=c["op"],
-                        args=c.get("args", {}),
-                        expect_at_least=c.get("expect_at_least", 0),
-                        expect_includes=list(c.get("expect_includes", [])),
+                        op=str(c["op"]),
+                        args=dict(c.get("args", {})),
+                        expect_at_least=int(c.get("expect_at_least", 0)),
+                        expect_includes=[str(x) for x in c.get("expect_includes", [])],
                     )
-                    for c in raw["checks"]
+                    for c in entry["checks"]
                 ],
             )
         )
