@@ -31,8 +31,27 @@ jobs:
           ruff check graphify_plus/core graphify_plus/runtime graphify_plus/interface graphify_plus/query graphify_plus/daemon scripts tests/core tests/runtime tests/interface tests/query tests/regression tests/scripts tests/daemon
           ruff format --check graphify_plus/core graphify_plus/runtime graphify_plus/interface graphify_plus/query graphify_plus/daemon scripts tests/core tests/runtime tests/interface tests/query tests/regression tests/scripts tests/daemon
       - name: Type check
+        # MYPY DEADLINE: continue-on-error flips to false on 2026-08-01
+        # (tracked in RISKS.md R11). Until then this step surfaces the
+        # error count without blocking the build. The 'mypy deadline
+        # enforcer' step below blocks if the date passes without the
+        # flag being flipped.
         run: mypy graphify_plus
-        continue-on-error: true   # tighten in later phases
+        continue-on-error: true
+      - name: Mypy deadline enforcer
+        # Hard fail if 2026-08-01 has passed and the previous step is
+        # still continue-on-error: true. This is the calendar-event
+        # discipline RISKS.md R11 commits to.
+        run: |
+          DEADLINE="2026-08-01"
+          TODAY=$(date -u +%Y-%m-%d)
+          if [ "$TODAY" \> "$DEADLINE" ]; then
+            echo "::error::mypy deadline ($DEADLINE) has passed."
+            echo "Flip continue-on-error to false on the 'Type check' step,"
+            echo "fix the remaining errors, and remove this enforcer."
+            exit 1
+          fi
+          echo "mypy deadline: $DEADLINE (today: $TODAY) — within window."
       - name: Tests
         run: pytest -q
       - name: Determinism

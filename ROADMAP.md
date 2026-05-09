@@ -177,19 +177,24 @@ This is the honesty surface the review guide asked for.
 ## Layer 28 — Disqualifications
 - 🟢 Stated explicitly in README
 
-## Honest gap analysis
+## Honest gap analysis — 🟡 owners and milestones
 
-The 🟡 items above are the ones where the review is most likely to push back. Each one is *shipped* in the sense that the API exists and any future caller writing against the shape won't have to be rewritten — but a reviewer who tries them on real data will hit limits. Specifically:
+The 🟡 items above are the ones where the review is most likely to push back. Each is *shipped* in the sense that the API exists and any future caller writing against the shape won't have to be rewritten — but a reviewer who tries them on real data will hit limits. Each line below answers two questions: **who** owns the lift to 🟢, and **which release** targets it.
 
-- **6.2 Slack** — works on Slack JSON exports; live API needs auth flow.
-- **7.4 live profiler** — py-spy is real, Node + MLX need adapter work.
-- **11.1 team graph** — local-fs only; no hosted server.
-- **11.4 marketplace** — registry is local; no hosted index.
-- **14.3 benchmark harness** — tiny fixture only; the credibility-building corpus (5–10 OSS repos) is the next sprint.
-- **15.5 hyperscale** — coordinator works; needs a real 10M-node load test.
-- **16.2 NL→GPL** — rule-based; LLM translation is opt-in caller code.
-- **17.3 status-bar pill** — data API only; needs a VS Code / editor extension.
-- **22 local LLM** — detection works; deterministic-output integration test pending.
-- **27.1 install** — spec ships; Homebrew tap publication pending.
+| Layer | What's scaffolded | Owner | Target | What "🟢" requires |
+|---|---|---|---|---|
+| 6.2 Slack | JSON export ingest works; live API not yet | TBD | v6.2 | OAuth flow + consent UX + per-channel allow-list creation prompt |
+| 7.4 Node profiler | SIGUSR1 + breadcrumb only | TBD | v6.1 | Real Chrome DevTools Protocol websocket client capturing a CPU profile programmatically |
+| 7.4 MLX profiler | Detection only | TBD | v6.2 | Attach mechanism + sample integration test |
+| 11.1 Team graph | Local-fs tier (NFS / Dropbox) | TBD | v6.3 | Optional self-hosted server with auth + conflict resolution UI |
+| 11.4 Marketplace | Registry shape + bundled defaults | TBD | v6.2 | Hosted registry index + version-pinned skill install |
+| 14.3 Benchmark | Tiny fixture corpus | TBD | v6.0.2 | 3 hand-labelled mid-sized OSS repos with gold graphs; precision/recall published in release notes |
+| 15.5 Hyperscale | Coordinator works on tiny shards | TBD | v6.3 | 10M+ node real monorepo load test + adaptive sharding |
+| 16.2 NL→GPL | Deterministic rule-based fallback | TBD | v6.1 (optional ext) | LLM-backed translator shipped as opt-in extra; deterministic fallback stays |
+| 17.3 Status-bar pill | Data API only | TBD | v6.2 | Reference VS Code extension consuming `graphifyPlus/statusBar` |
+| 22 Local LLM | Detection probes only | TBD | v6.1 | Deterministic-output integration test against a real local Ollama model |
+| 27.1 Install | Spec + formula scaffold | TBD | v6.0.1 | Published Homebrew tap with real SHAs |
+
+Owners marked **TBD** reflect honest project state — none of these have an assigned individual yet. Naming someone in the next planning cycle is the next step. The target column is the *promise to readers*: anyone tracking this roadmap can hold the project to that release.
 
 See [`RISKS.md`](RISKS.md) for the failure modes that may surface post-merge against the 🟢 items.

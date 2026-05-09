@@ -236,6 +236,43 @@ way, this should not stay tolerated indefinitely.
 
 ---
 
+## R13 — 1-hop tail latency on medium graphs (empirically found)
+
+**Symptom**: on a 38k-symbol synthetic codebase the `1_hop` workload
+shows P99 = 1.78s in the warm/hot cache states (P50 stays at
+~0.01ms). A session with hundreds of `who_calls` calls per hour
+will hit visible delays on the long tail.
+
+**Root cause**: `_inbound` does a per-call linear scan for placeholder
+aliases keyed on the target's short name. For names like `compute`
+that map to hundreds of placeholders, iterating their inbound edges
+is the linear-in-placeholder-fanout cost. Most calls miss the tail;
+the 99th-percentile common-name calls hit it.
+
+**Mitigation in place**: median latency is fine; the tail is a
+correctness-preserving slow path, not wrong answers. Hot-cache P99
+on the small repo (1,371 symbols) is 0.4ms — the issue scales with
+graph size.
+
+**Follow-up**: precompute the placeholder→callers join at snapshot
+build time so query-time becomes O(1) instead of O(fanout). Target
+v6.0.1. Until then, document this in release notes so reviewers see
+the medium-repo number honestly.
+
+**Reproduce**:
+
+```bash
+python scripts/perfcheck_medium.py --target-symbols 30000
+cat docs/perf/medium_repo_perfcheck.md
+```
+
+**Methodology caveat**: with `samples_per_cell=25` the P99 is
+effectively the max of 25 samples. Re-run with `--samples 1200`
+(100 per cell) for a real P99 distribution. The current numbers are
+a signal, not a precise measurement.
+
+---
+
 ## R12 — Slack ingest privacy boundary
 
 **Symptom**: a user without an explicit `chat-allowlist.yaml` runs

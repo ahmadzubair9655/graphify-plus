@@ -1276,6 +1276,62 @@ def adoption_cmd(repo: Path, window_hours: int, as_json: bool) -> None:
     click.echo(render_report(rep))
 
 
+@daemon_cmd.group("adoption-baseline")
+def adoption_baseline_group() -> None:
+    """Snapshot today's adoption rate as the comparison anchor.
+
+    Without a baseline, ``gp daemon adoption`` shows an absolute
+    number with no comparison — and the rewrite's whole premise is
+    "this changed Claude's behaviour vs the prior state." The
+    baseline file (``.graphify_plus/adoption-baseline.json``) is
+    local-only and never shipped.
+    """
+
+
+@adoption_baseline_group.command("set")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--window-hours", default=24, type=int)
+@click.option("--label", default="v6.0", help="Free-form tag for the baseline.")
+def adoption_baseline_set_cmd(repo: Path, window_hours: int, label: str) -> None:
+    from ...daemon.adoption import adoption_report, write_baseline
+
+    rep = adoption_report(repo.resolve(), window_hours=window_hours)
+    p = write_baseline(repo.resolve(), rep, label=label)
+    click.echo(
+        f"baseline saved: adoption_rate={rep.adoption_rate:.1%}  "
+        f"window={window_hours}h  label={label}\n  → {p}"
+    )
+
+
+@adoption_baseline_group.command("show")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def adoption_baseline_show_cmd(repo: Path, as_json: bool) -> None:
+    from ...daemon.adoption import load_baseline
+
+    body = load_baseline(repo.resolve())
+    if body is None:
+        click.echo("no baseline stored")
+        return
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+        return
+    click.echo(f"label       : {body.get('label')}")
+    click.echo(f"captured_at : {body.get('captured_at')}")
+    click.echo(f"window_hours: {body.get('window_hours')}")
+    click.echo(f"adoption    : {body.get('adoption_rate', 0):.1%}")
+    click.echo(f"  graph     : {body.get('graph_calls')}")
+    click.echo(f"  grep      : {body.get('grep_calls')}")
+
+
 @daemon_cmd.command("perfcheck")
 @click.option(
     "--repo",
