@@ -10,7 +10,6 @@ from click.testing import CliRunner
 from graphify_plus.daemon.handlers import whats_risky, whats_vulnerable
 from graphify_plus.daemon.indexes import InMemoryGraph
 from graphify_plus.daemon.overlays import (
-    CVEEntry,
     SASTFinding,
     cve_reach_map,
     ingest_audit,
@@ -20,12 +19,9 @@ from graphify_plus.daemon.overlays import (
     map_findings_to_symbols,
     parse_audit_report,
     parse_sast_report,
-    store_cve,
-    store_sast,
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- CVE -----------------------------------------------------------------
 
@@ -63,7 +59,13 @@ def _write_npm_audit(path: Path) -> None:
                 "name": "lodash",
                 "severity": "high",
                 "range": "<4.17.21",
-                "via": [{"source": "GHSA-xxx", "title": "Prototype pollution", "url": "https://example/x"}],
+                "via": [
+                    {
+                        "source": "GHSA-xxx",
+                        "title": "Prototype pollution",
+                        "url": "https://example/x",
+                    }
+                ],
             }
         }
     }
@@ -291,9 +293,7 @@ def test_cli_security_ingest_audit(repo: Path, tmp_path: Path) -> None:
     p = tmp_path / "audit.json"
     _write_pip_audit(p, [{"name": "requests", "version": "2", "id": "CVE-1"}])
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["security", "ingest", str(p), "--repo", str(repo)]
-    )
+    result = runner.invoke(daemon_cmd, ["security", "ingest", str(p), "--repo", str(repo)])
     assert result.exit_code == 0, result.output
     assert "CVE" in result.output
 
@@ -302,9 +302,7 @@ def test_cli_security_ingest_sast(repo: Path, tmp_path: Path) -> None:
     p = tmp_path / "bandit.json"
     _write_bandit(p)
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["security", "ingest-sast", str(p), "--repo", str(repo)]
-    )
+    result = runner.invoke(daemon_cmd, ["security", "ingest-sast", str(p), "--repo", str(repo)])
     assert result.exit_code == 0, result.output
     assert "finding" in result.output
 

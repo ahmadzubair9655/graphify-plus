@@ -47,7 +47,7 @@ log = logging.getLogger("graphify_plus.daemon.indexes")
 
 TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 PAGERANK_TOP_N = 50
-STALE_PATH_CLIP = 16        # don't surface more than this many stale paths in freshness
+STALE_PATH_CLIP = 16  # don't surface more than this many stale paths in freshness
 PAGERANK_MAX_ITER = 100
 
 
@@ -217,7 +217,7 @@ class InMemoryGraph:
                 snap.inverted_text.setdefault(tok, set()).add(sid)
 
         snap.sorted_qnames.sort()
-        for path, ids in snap.by_path.items():
+        for _path, ids in snap.by_path.items():
             ids.sort(key=lambda sid: (snap.by_id[sid].get("span") or (0, 0))[0])
 
         # Edge-level adjacency caches + placeholder index. The placeholder
@@ -246,9 +246,9 @@ class InMemoryGraph:
                 # Skip placeholder external nodes — they're noise for "what's central".
                 # Placeholders aren't in ``by_id`` (only real symbols are), so absence
                 # there is the canonical "this is a placeholder" check.
-                snap.pagerank_top = [
-                    (sid, score) for sid, score in ranked if sid in snap.by_id
-                ][:PAGERANK_TOP_N]
+                snap.pagerank_top = [(sid, score) for sid, score in ranked if sid in snap.by_id][
+                    :PAGERANK_TOP_N
+                ]
         except Exception as exc:  # noqa: BLE001 — pagerank may fail on degenerate graphs
             log.debug("pagerank failed: %s", exc)
             snap.pagerank_top = []

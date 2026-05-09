@@ -6,8 +6,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from click.testing import CliRunner
-
 from graphify_plus.daemon.handlers import HANDLERS
 from graphify_plus.daemon.hybrid_grep import (
     grep_stale_paths,
@@ -16,7 +14,6 @@ from graphify_plus.daemon.hybrid_grep import (
 )
 from graphify_plus.daemon.indexes import InMemoryGraph
 from graphify_plus.daemon.lsp_shim import LSPServer
-
 
 # ---- Layer 2.3 — hybrid grep fallback ----------------------------------
 

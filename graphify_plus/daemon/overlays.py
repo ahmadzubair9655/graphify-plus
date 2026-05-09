@@ -168,8 +168,7 @@ def store_cve(store: Store, rows: list[CVEEntry]) -> int:
 def load_cve(store: Store) -> list[dict[str, Any]]:
     ensure_cve_table(store)
     rows = store.conn.execute(
-        "SELECT cve_id, package, version, severity, summary, fix_versions, advisory_url "
-        "FROM cve"
+        "SELECT cve_id, package, version, severity, summary, fix_versions, advisory_url FROM cve"
     ).fetchall()
     out: list[dict[str, Any]] = []
     for cve_id, pkg, ver, sev, summary, fvs, url in rows:
@@ -330,9 +329,7 @@ def map_findings_to_symbols(
             by_path.setdefault(path, []).append(s)
     for syms in by_path.values():
         syms.sort(
-            key=lambda s: (
-                ((s.get("span") or (0, 0))[1] - (s.get("span") or (0, 0))[0]) or 1_000_000
-            )
+            key=lambda s: ((s.get("span") or (0, 0))[1] - (s.get("span") or (0, 0))[0]) or 1_000_000
         )
     out: dict[int, str | None] = {}
     for i, f in enumerate(findings):
@@ -415,9 +412,7 @@ def load_sast(store: Store) -> dict[str, list[dict[str, Any]]]:
 
 def load_sast_summary(store: Store) -> dict[str, Any]:
     ensure_sast_table(store)
-    rows = store.conn.execute(
-        "SELECT severity, COUNT(*) FROM sast GROUP BY severity"
-    ).fetchall()
+    rows = store.conn.execute("SELECT severity, COUNT(*) FROM sast GROUP BY severity").fetchall()
     return {sev: int(n) for sev, n in rows}
 
 

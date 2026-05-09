@@ -222,7 +222,7 @@ def attribute_refs(nodes: list[IngestNode], symbols: list[Symbol]) -> None:
         # Match short names only when they look like code (preceded by
         # whitespace or punctuation, followed by `(`/`.`/space).
         for name, ids in name_to_ids.items():
-            for m in re.finditer(rf"(?<![A-Za-z0-9_])({re.escape(name)})(?=[(.\s])", body_lower):
+            for _m in re.finditer(rf"(?<![A-Za-z0-9_])({re.escape(name)})(?=[(.\s])", body_lower):
                 seen.update(ids)
                 break
         node.refs = sorted(seen)
@@ -269,7 +269,9 @@ def _gh(args: list[str], cwd: Path) -> str | None:
     return proc.stdout
 
 
-def fetch_github_issues(repo_root: Path, *, state: str = "open", limit: int = 200) -> list[IngestNode]:
+def fetch_github_issues(
+    repo_root: Path, *, state: str = "open", limit: int = 200
+) -> list[IngestNode]:
     out = _gh(
         [
             "issue",

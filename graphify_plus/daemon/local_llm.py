@@ -24,14 +24,13 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 log = logging.getLogger("graphify_plus.daemon.local_llm")
 
 
 @dataclass
 class LLMBackend:
-    name: str         # 'ollama' | 'llama.cpp' | 'mlx' | 'cloud' | 'none'
+    name: str  # 'ollama' | 'llama.cpp' | 'mlx' | 'cloud' | 'none'
     url: str
     model: str = ""
     available: bool = False
@@ -40,8 +39,8 @@ class LLMBackend:
 
 @dataclass
 class RoutingRule:
-    pattern: str       # glob against the *repo-relative* path
-    backend: str       # 'local' | 'cloud' | 'skip'
+    pattern: str  # glob against the *repo-relative* path
+    backend: str  # 'local' | 'cloud' | 'skip'
 
 
 @dataclass
@@ -139,11 +138,7 @@ def _glob_match(pattern: str, path: str) -> bool:
         # Translate to regex once (escape the rest of the pattern).
         regex = re.escape(pattern).replace(r"\*", ".*")
         return re.search(regex, path) is not None
-    return (
-        path == pattern
-        or path.startswith(pattern.rstrip("/") + "/")
-        or path.endswith(pattern)
-    )
+    return path == pattern or path.startswith(pattern.rstrip("/") + "/") or path.endswith(pattern)
 
 
 def deterministic_seed(prompt: str) -> int:

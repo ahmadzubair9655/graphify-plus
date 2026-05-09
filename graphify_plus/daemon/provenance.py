@@ -207,7 +207,7 @@ def filter_llm_edges(
     anchored: list[Edge] = []
     for e in grounded:
         snip = (e.get("evidence_snippet") or "").strip()  # type: ignore[typeddict-item]
-        path = (e.get("evidence_path") or "")  # type: ignore[typeddict-item]
+        path = e.get("evidence_path") or ""  # type: ignore[typeddict-item]
         if not snip or snippet_index is None or path not in snippet_index:
             anchored.append(e)
             continue
@@ -232,9 +232,7 @@ def hash_prompt(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-def evaluate_negative_sampling(
-    real_edges: list[Edge], decoy_edges: list[Edge]
-) -> dict[str, Any]:
+def evaluate_negative_sampling(real_edges: list[Edge], decoy_edges: list[Edge]) -> dict[str, Any]:
     """Negative-sampling self-check.
 
     The caller asks the model to produce real edges *and* decoys (e.g.

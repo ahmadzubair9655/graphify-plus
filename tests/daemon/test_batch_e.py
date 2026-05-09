@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
 from graphify_plus.daemon.indexes import InMemoryGraph
@@ -25,15 +24,12 @@ from graphify_plus.daemon.ops_rigor import (
 from graphify_plus.daemon.quickstart import render_quickstart, run_quickstart
 from graphify_plus.daemon.scaling import (
     Approximate,
-    HUGE_GRAPH_THRESHOLD,
     build_coarse,
     coarse_summary,
     is_huge,
     sampled_pagerank,
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
-from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- Layer 26 ------------------------------------------------------------
 
@@ -215,7 +211,5 @@ def test_cli_privacy_dry_run(repo: Path) -> None:
 
 def test_cli_perfcheck(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["perfcheck", "--repo", str(repo), "--samples", "10"]
-    )
+    result = runner.invoke(daemon_cmd, ["perfcheck", "--repo", str(repo), "--samples", "10"])
     assert result.exit_code in (0, 1), result.output  # may legitimately fail tight target

@@ -44,7 +44,13 @@ def is_disabled() -> bool:
 def version_check(repo: Path, current: str) -> VersionInfo:
     p = cache_path(repo)
     if is_disabled():
-        return VersionInfo(current=current, latest=None, update_available=False, checked_at=time.time(), error="disabled")
+        return VersionInfo(
+            current=current,
+            latest=None,
+            update_available=False,
+            checked_at=time.time(),
+            error="disabled",
+        )
     if p.exists():
         try:
             cached = json.loads(p.read_text(encoding="utf-8"))

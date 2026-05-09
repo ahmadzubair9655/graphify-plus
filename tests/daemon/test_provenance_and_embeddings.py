@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from graphify_plus.daemon.embeddings import (
     EmbeddingState,
     rerank_or_passthrough,
@@ -23,7 +21,6 @@ from graphify_plus.daemon.provenance import (
     store_provenance,
 )
 from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- Layer 14 ------------------------------------------------------------
 

@@ -51,7 +51,11 @@ def test_parse_invalid_raises() -> None:
 def test_execute_find_filters_rows(snapshot: InMemoryGraph) -> None:
     q = parse('FIND nodes WHERE kind = "method"')
     out = execute(snapshot, q)
-    assert all((r.get("label") or "").endswith((".login", ".validate")) or "AuthService" in (r.get("label") or "") for r in out["rows"])
+    assert all(
+        (r.get("label") or "").endswith((".login", ".validate"))
+        or "AuthService" in (r.get("label") or "")
+        for r in out["rows"]
+    )
 
 
 def test_execute_count_by(snapshot: InMemoryGraph) -> None:
@@ -70,9 +74,7 @@ def test_execute_match_returns_projection(snapshot: InMemoryGraph) -> None:
 
 
 def test_execute_match_with_edge_traversal(snapshot: InMemoryGraph) -> None:
-    q = parse(
-        "MATCH (n)-[:contains*1..2]->(m) RETURN label LIMIT 50"
-    )
+    q = parse("MATCH (n)-[:contains*1..2]->(m) RETURN label LIMIT 50")
     out = execute(snapshot, q)
     # `auth.AuthService` contains login/validate, so we should at least
     # get one row back.
@@ -139,8 +141,6 @@ def test_cli_gpl_save_and_run(repo) -> None:
 
 def test_cli_gpl_nl(repo) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["gpl", "--repo", str(repo), "--nl", "untested classes"]
-    )
+    result = runner.invoke(daemon_cmd, ["gpl", "--repo", str(repo), "--nl", "untested classes"])
     assert result.exit_code == 0, result.output
     assert "translated" in result.output

@@ -77,9 +77,7 @@ def make_digest(
     if graph.coverage:
         total_lc = sum(int(c.get("lines_covered", 0)) for c in graph.coverage.values())
         total_lt = sum(int(c.get("lines_total", 0)) for c in graph.coverage.values())
-        digest.coverage_overall_pct = (
-            round(total_lc / total_lt * 100.0, 1) if total_lt else None
-        )
+        digest.coverage_overall_pct = round(total_lc / total_lt * 100.0, 1) if total_lt else None
 
     digest.next_steps = _next_steps(review, digest.coverage_overall_pct)
     return digest
@@ -96,9 +94,7 @@ def _next_steps(review: Review, coverage_pct: float | None) -> list[str]:
     if review.rules_violations:
         n_err = sum(1 for v in review.rules_violations if v.get("severity") == "error")
         if n_err:
-            steps.append(
-                f"Resolve {n_err} error-severity rule violation(s) before merge."
-            )
+            steps.append(f"Resolve {n_err} error-severity rule violation(s) before merge.")
     if review.central_touched and not review.untested_touched:
         first = review.central_touched[0]
         steps.append(
@@ -119,9 +115,7 @@ def format_digest(digest: SessionDigest) -> str:
     """Render as Markdown — pastes cleanly into a PR description."""
     lines: list[str] = []
     lines.append(f"# Session digest — {digest.repo}")
-    lines.append(
-        f"_{digest.since_ref}…{digest.head_ref}  •  ended {digest.ended_at}_"
-    )
+    lines.append(f"_{digest.since_ref}…{digest.head_ref}  •  ended {digest.ended_at}_")
     lines.append("")
 
     if digest.review:
@@ -132,9 +126,7 @@ def format_digest(digest: SessionDigest) -> str:
         if digest.review.touched:
             lines.append("**Symbols touched:**")
             for n in digest.review.touched[:10]:
-                lines.append(
-                    f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}`"
-                )
+                lines.append(f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}`")
             if len(digest.review.touched) > 10:
                 lines.append(f"- … and {len(digest.review.touched) - 10} more")
             lines.append("")
@@ -148,8 +140,7 @@ def format_digest(digest: SessionDigest) -> str:
         )
         for v in digest.review.rules_violations[:5]:
             lines.append(
-                f"- [{v.get('severity', '?')}] **{v.get('rule_id', '?')}**: "
-                f"{v.get('message', '')}"
+                f"- [{v.get('severity', '?')}] **{v.get('rule_id', '?')}**: {v.get('message', '')}"
             )
         lines.append("")
 
@@ -158,9 +149,7 @@ def format_digest(digest: SessionDigest) -> str:
         lines.append("")
         for n in digest.review.untested_touched[:8]:
             pct = f"{n.coverage_pct}%" if n.coverage_pct is not None else "no signal"
-            lines.append(
-                f"- {n.label} `{n.source_file}:{n.line_number}` — coverage **{pct}**"
-            )
+            lines.append(f"- {n.label} `{n.source_file}:{n.line_number}` — coverage **{pct}**")
         lines.append("")
 
     if digest.coverage_overall_pct is not None:

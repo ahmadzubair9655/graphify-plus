@@ -48,7 +48,9 @@ def run_quickstart(repo: Path) -> dict[str, Any]:
                     store.link_skeleton(sid, h)
             finally:
                 store.close()
-            out["steps"].append({"step": "init", "files_parsed": res.files_parsed, "symbols": len(res.symbols)})
+            out["steps"].append(
+                {"step": "init", "files_parsed": res.files_parsed, "symbols": len(res.symbols)}
+            )
         except Exception as exc:  # noqa: BLE001
             out["steps"].append({"step": "init", "error": str(exc)})
     else:
@@ -74,8 +76,8 @@ def run_quickstart(repo: Path) -> dict[str, Any]:
     # Install routing skill + pre-grep hook by reusing the existing
     # 'gp daemon install' code path so behaviour stays consistent.
     try:
-        from importlib import resources
         import shutil
+        from importlib import resources
 
         template_root = resources.files("graphify_plus.daemon.templates")
         targets = {

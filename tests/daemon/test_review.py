@@ -20,7 +20,6 @@ from graphify_plus.daemon.review import (
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 from graphify_plus.runtime.store import Store, cache_path
 
-
 SAMPLE_DIFF = """\
 diff --git a/auth.py b/auth.py
 index 1111111..2222222 100644
@@ -61,7 +60,7 @@ def test_review_marks_untested_touched(repo: Path) -> None:
         '<?xml version="1.0"?>\n<coverage><packages><package name="x">'
         '<classes><class filename="auth.py" name="x">'
         '<lines><line number="7" hits="0"/><line number="8" hits="0"/></lines>'
-        '</class></classes></package></packages></coverage>'
+        "</class></classes></package></packages></coverage>"
     )
     store = Store(cache_path(repo))
     try:
@@ -100,9 +99,7 @@ def test_cli_review_human_output(repo: Path) -> None:
     compute diff' message rather than a crash.
     """
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["review", "--repo", str(repo), "--base", "no-such-ref"]
-    )
+    result = runner.invoke(daemon_cmd, ["review", "--repo", str(repo), "--base", "no-such-ref"])
     assert result.exit_code == 0, result.output
     assert "Review —" in result.output
 

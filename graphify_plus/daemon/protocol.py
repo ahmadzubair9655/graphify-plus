@@ -94,12 +94,12 @@ class FreshnessTrust(str, Enum):
 
 
 class Freshness(TypedDict, total=False):
-    graph_built_at: str         # ISO-8601 UTC
-    files_changed_since: int    # 0 means fully fresh
-    stale_paths: list[str]      # subset of changed paths (clipped)
-    trust: str                  # one of FreshnessTrust values
-    freshness_token: str        # short hash that changes whenever graph changes
-    hint: str                   # human-readable advice when trust degrades
+    graph_built_at: str  # ISO-8601 UTC
+    files_changed_since: int  # 0 means fully fresh
+    stale_paths: list[str]  # subset of changed paths (clipped)
+    trust: str  # one of FreshnessTrust values
+    freshness_token: str  # short hash that changes whenever graph changes
+    hint: str  # human-readable advice when trust degrades
 
 
 # ---- envelope ------------------------------------------------------------
@@ -108,12 +108,12 @@ class Freshness(TypedDict, total=False):
 class Receipt(TypedDict, total=False):
     op: str
     elapsed_ms: float
-    tokens: int                 # estimated tokens in the result body
-    grep_equivalent: str        # human-readable "would have taken ~14 file reads"
+    tokens: int  # estimated tokens in the result body
+    grep_equivalent: str  # human-readable "would have taken ~14 file reads"
 
 
 class ErrorBody(TypedDict, total=False):
-    code: str                   # short uppercase identifier
+    code: str  # short uppercase identifier
     message: str
     detail: dict[str, Any]
 

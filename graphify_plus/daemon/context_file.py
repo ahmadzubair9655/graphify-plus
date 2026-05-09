@@ -19,9 +19,7 @@ from .indexes import InMemoryGraph
 
 START_MARKER = "<!-- graphify-plus:start -->"
 END_MARKER = "<!-- graphify-plus:end -->"
-OWNED_RE = re.compile(
-    re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER), re.DOTALL
-)
+OWNED_RE = re.compile(re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER), re.DOTALL)
 
 
 SUPPORTED_FILES = ("CLAUDE.md", "AGENTS.md", ".cursorrules", ".codex/instructions.md")
@@ -107,16 +105,12 @@ def render_section(section: ContextSection, *, repo_name: str = "") -> str:
             lines.append("")
             lines.append("Direct dependents:")
             for n in section.focus_neighbours:
-                lines.append(
-                    f"- {n['label']} `{n['source_file']}:{n['line_number']}`"
-                )
+                lines.append(f"- {n['label']} `{n['source_file']}:{n['line_number']}`")
         lines.append("")
     if section.god_nodes:
         lines.append("**Top central concepts** (PageRank):")
         for g in section.god_nodes:
-            lines.append(
-                f"- {g['label']} [{g['kind']}] `{g['source_file']}:{g['line_number']}`"
-            )
+            lines.append(f"- {g['label']} [{g['kind']}] `{g['source_file']}:{g['line_number']}`")
         lines.append("")
     if section.untested_central:
         lines.append("**⚠️ Untested central code:**")

@@ -20,7 +20,6 @@ from graphify_plus.daemon import DaemonClient, DaemonServer
 from graphify_plus.daemon.indexes import InMemoryGraph
 from graphify_plus.runtime.store import Store, cache_path
 
-
 SAMPLE_PY = """\
 \"\"\"sample auth module.\"\"\"
 

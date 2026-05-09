@@ -102,13 +102,9 @@ class LSPServer:
             if mid is None:
                 continue
             if result is None:
-                _write_message(
-                    out_stream, {"jsonrpc": "2.0", "id": mid, "result": None}
-                )
+                _write_message(out_stream, {"jsonrpc": "2.0", "id": mid, "result": None})
             else:
-                _write_message(
-                    out_stream, {"jsonrpc": "2.0", "id": mid, "result": result}
-                )
+                _write_message(out_stream, {"jsonrpc": "2.0", "id": mid, "result": result})
         return 0
 
     def _dispatch(self, method: str | None, params: dict[str, Any]) -> Any:

@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import io
 import json
-import threading
 from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
 from graphify_plus.daemon.anomaly import (
-    Anomaly,
     HealthSnapshot,
     append_snapshot,
     ascii_sparkline,
@@ -20,10 +17,11 @@ from graphify_plus.daemon.anomaly import (
     render_trend,
     render_weekly,
     take_snapshot,
-    trend_summary,
 )
 from graphify_plus.daemon.audit_log import (
     append as audit_append,
+)
+from graphify_plus.daemon.audit_log import (
     by_agent,
     current_namespace,
     hash_log,
@@ -34,7 +32,6 @@ from graphify_plus.daemon.audit_log import (
 from graphify_plus.daemon.indexes import InMemoryGraph
 from graphify_plus.daemon.lsp_shim import LSPServer, _read_message, _write_message
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
-
 
 # ---- Layer 19 ------------------------------------------------------------
 
@@ -154,9 +151,7 @@ def test_cli_trend_runs(repo: Path) -> None:
 
 def test_cli_trend_snapshot_then_show(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["trend", "--repo", str(repo), "--snapshot"]
-    )
+    result = runner.invoke(daemon_cmd, ["trend", "--repo", str(repo), "--snapshot"])
     assert result.exit_code == 0
 
 
@@ -164,9 +159,7 @@ def test_cli_trend_snapshot_then_show(repo: Path) -> None:
 
 
 def test_audit_append_and_read(repo: Path) -> None:
-    rec = audit_append(
-        repo, kind="annotation", target="sid-1", payload={"note": "x"}
-    )
+    rec = audit_append(repo, kind="annotation", target="sid-1", payload={"note": "x"})
     rows = read_all(repo)
     assert len(rows) == 1
     assert rows[0].id == rec.id
@@ -174,7 +167,7 @@ def test_audit_append_and_read(repo: Path) -> None:
 
 def test_audit_revert_creates_tombstone(repo: Path) -> None:
     rec = audit_append(repo, kind="annotation", target="sid-1", payload={"note": "x"})
-    tomb = revert(repo, rec.id)
+    revert(repo, rec.id)
     rows = read_all(repo)
     assert any(r.kind == "tombstone" for r in rows)
     state = latest_state(repo)
@@ -216,9 +209,7 @@ def test_cli_audit_log(repo: Path) -> None:
 def test_cli_audit_revert(repo: Path) -> None:
     rec = audit_append(repo, kind="annotation", target="sid-1")
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["audit", "revert", rec.id, "--repo", str(repo)]
-    )
+    result = runner.invoke(daemon_cmd, ["audit", "revert", rec.id, "--repo", str(repo)])
     assert result.exit_code == 0
     assert "tombstone" in result.output
 
@@ -257,9 +248,7 @@ def test_lsp_status_bar_no_daemon(repo: Path) -> None:
 
 def test_lsp_uri_to_rel(repo: Path) -> None:
     server = LSPServer(repo)
-    rel = server._uri_to_rel(
-        {"textDocument": {"uri": f"file://{repo}/auth.py"}}
-    )
+    rel = server._uri_to_rel({"textDocument": {"uri": f"file://{repo}/auth.py"}})
     assert rel == "auth.py"
 
 

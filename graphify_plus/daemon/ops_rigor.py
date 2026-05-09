@@ -18,9 +18,10 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .indexes import InMemoryGraph
 
@@ -130,7 +131,6 @@ def perfcheck(graph: InMemoryGraph, *, samples: int = 500) -> PerfResult:
     """Time ``samples`` cheap queries and assert against published
     targets. Used by CI regression tests.
     """
-    import statistics
 
     if not graph.by_id:
         return PerfResult(n_symbols=0, samples=0, p50_ms=0.0, p95_ms=0.0, p99_ms=0.0)

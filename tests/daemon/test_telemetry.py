@@ -7,7 +7,6 @@ import threading
 import time
 from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
 from graphify_plus.daemon import DaemonClient, DaemonServer
@@ -143,7 +142,9 @@ def test_daemon_writes_telemetry(repo: Path) -> None:
 
 
 def test_stats_cli_human_output(tmp_path: Path) -> None:
-    append_event(tmp_path, "who_calls", elapsed_ms=1.0, tokens=10, n_results=1, trust="FRESH", ok=True)
+    append_event(
+        tmp_path, "who_calls", elapsed_ms=1.0, tokens=10, n_results=1, trust="FRESH", ok=True
+    )
     runner = CliRunner()
     result = runner.invoke(daemon_cmd, ["stats", "--repo", str(tmp_path)])
     assert result.exit_code == 0, result.output
@@ -152,7 +153,9 @@ def test_stats_cli_human_output(tmp_path: Path) -> None:
 
 
 def test_stats_cli_json_output(tmp_path: Path) -> None:
-    append_event(tmp_path, "who_calls", elapsed_ms=1.0, tokens=10, n_results=1, trust="FRESH", ok=True)
+    append_event(
+        tmp_path, "who_calls", elapsed_ms=1.0, tokens=10, n_results=1, trust="FRESH", ok=True
+    )
     runner = CliRunner()
     result = runner.invoke(daemon_cmd, ["stats", "--repo", str(tmp_path), "--json"])
     assert result.exit_code == 0, result.output

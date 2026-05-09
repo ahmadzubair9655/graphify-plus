@@ -68,9 +68,7 @@ def test_plan_handler_returns_dict(snapshot: InMemoryGraph) -> None:
 
 def test_plan_cli_human_output(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["plan", "authenticate user login", "--repo", str(repo)]
-    )
+    result = runner.invoke(daemon_cmd, ["plan", "authenticate user login", "--repo", str(repo)])
     assert result.exit_code == 0, result.output
     assert "Plan —" in result.output
     assert "Risk" in result.output
@@ -78,9 +76,7 @@ def test_plan_cli_human_output(repo: Path) -> None:
 
 def test_plan_cli_json_output(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["plan", "authenticate user", "--repo", str(repo), "--json"]
-    )
+    result = runner.invoke(daemon_cmd, ["plan", "authenticate user", "--repo", str(repo), "--json"])
     assert result.exit_code == 0, result.output
     body = json.loads(result.output)
     assert "affected" in body

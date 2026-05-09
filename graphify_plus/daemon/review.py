@@ -158,9 +158,7 @@ def make_review(
     if diff_text is None:
         diff_text = _git_diff(graph.repo_root, base, head)
     if diff_text is None:
-        review.summary = (
-            "Could not compute diff (is this a git repo? does the base ref exist?)"
-        )
+        review.summary = "Could not compute diff (is this a git repo? does the base ref exist?)"
         return review
 
     changes = changes_from_unified_diff(diff_text)
@@ -180,7 +178,9 @@ def make_review(
                 # Heuristic: if every line in the symbol's span is in
                 # added_lines, treat as new.
                 if all((start <= ln <= end) for ln in change.added_lines if start <= ln <= end):
-                    if change.added_lines and len(set(change.added_lines)) >= max(1, end - start - 1):
+                    if change.added_lines and len(set(change.added_lines)) >= max(
+                        1, end - start - 1
+                    ):
                         new_ids.add(sid)
 
     pr_set = {sid for sid, _ in graph.pagerank_top}
@@ -293,9 +293,7 @@ def _structural_summary(review: Review) -> str:
     n = len(review.touched)
     files = len({n.source_file for n in review.touched if n.source_file})
     parts: list[str] = []
-    parts.append(
-        f"Changes touch {n} symbol(s) across {files} file(s)."
-    )
+    parts.append(f"Changes touch {n} symbol(s) across {files} file(s).")
     if review.central_touched:
         names = ", ".join(n.label for n in review.central_touched[:3])
         parts.append(
@@ -312,13 +310,9 @@ def _structural_summary(review: Review) -> str:
         if n_err:
             parts.append(f"{n_err} error-severity rule violation(s) — block before merge.")
         else:
-            parts.append(
-                f"{len(review.rules_violations)} architectural-rule warning(s)."
-            )
+            parts.append(f"{len(review.rules_violations)} architectural-rule warning(s).")
     if review.blast_radius:
-        parts.append(
-            f"Blast radius: {len(review.blast_radius)} dependent(s) of touched nodes."
-        )
+        parts.append(f"Blast radius: {len(review.blast_radius)} dependent(s) of touched nodes.")
     return " ".join(parts)
 
 
@@ -352,8 +346,7 @@ def format_review(review: Review) -> str:
         for n in review.untested_touched:
             pct = f"{n.coverage_pct}%" if n.coverage_pct is not None else "no signal"
             lines.append(
-                f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}` "
-                f"— coverage **{pct}**"
+                f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}` — coverage **{pct}**"
             )
         lines.append("")
     if review.rules_violations:
@@ -370,9 +363,7 @@ def format_review(review: Review) -> str:
         lines.append("")
         for n in review.touched[:20]:
             tag = "**new**" if n.new else f"{n.n_dependents} deps"
-            lines.append(
-                f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}` ({tag})"
-            )
+            lines.append(f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}` ({tag})")
         if len(review.touched) > 20:
             lines.append(f"- … and {len(review.touched) - 20} more")
         lines.append("")

@@ -15,18 +15,18 @@ from graphify_plus.daemon.coverage import (
     load_coverage,
     map_to_symbols,
     parse_report,
-    store_coverage,
 )
 from graphify_plus.daemon.handlers import (
     HANDLERS,
     coverage_for,
-    coverage_summary as cov_summary_handler,
     whats_untested,
+)
+from graphify_plus.daemon.handlers import (
+    coverage_summary as cov_summary_handler,
 )
 from graphify_plus.daemon.indexes import InMemoryGraph
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- parser tests --------------------------------------------------------
 
@@ -38,12 +38,12 @@ def _write_cobertura(path: Path, data: dict[str, list[tuple[int, int]]]) -> None
         parts.append(
             f'    <package name="x"><classes>\n'
             f'      <class filename="{filename}" name="x">\n'
-            f'        <lines>\n'
+            f"        <lines>\n"
         )
         for ln, hits in lines:
             parts.append(f'          <line number="{ln}" hits="{hits}"/>\n')
-        parts.append('        </lines>\n      </class>\n    </classes></package>\n')
-    parts.append('  </packages>\n</coverage>\n')
+        parts.append("        </lines>\n      </class>\n    </classes></package>\n")
+    parts.append("  </packages>\n</coverage>\n")
     path.write_text("".join(parts))
 
 
@@ -101,9 +101,7 @@ def test_map_to_symbols_attributes_lines_to_deepest_owner(snapshot: InMemoryGrap
     """For a symbol whose span is (5, 8), lines 5–8 must attribute to it
     (not to the enclosing module / class)."""
     login = next(
-        s
-        for s in snapshot.by_id.values()
-        if s.get("qualified_name") == "auth.AuthService.login"
+        s for s in snapshot.by_id.values() if s.get("qualified_name") == "auth.AuthService.login"
     )
     span = login["span"]
     from graphify_plus.daemon.coverage import CoverageReport
@@ -132,9 +130,7 @@ def test_map_to_symbols_falls_back_to_module_for_top_level_lines(
     module = next(s for s in snapshot.by_id.values() if s.get("qualified_name") == "auth")
     from graphify_plus.daemon.coverage import CoverageReport
 
-    report = CoverageReport(
-        files={"auth.py": [LineHit(line=1, hits=1)]}, source="cobertura"
-    )
+    report = CoverageReport(files={"auth.py": [LineHit(line=1, hits=1)]}, source="cobertura")
     rows = map_to_symbols(report, list(snapshot.by_id.values()), Path("."))
     by_id = {r.symbol_id: r for r in rows}
     assert module["id"] in by_id
@@ -235,9 +231,7 @@ def test_cli_coverage_ingest_and_summary(repo: Path, tmp_path: Path) -> None:
     cov_xml = tmp_path / "cov.xml"
     _write_cobertura(cov_xml, {"auth.py": [(7, 1), (8, 1), (10, 0), (11, 0)]})
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["coverage", "ingest", str(cov_xml), "--repo", str(repo)]
-    )
+    result = runner.invoke(daemon_cmd, ["coverage", "ingest", str(cov_xml), "--repo", str(repo)])
     assert result.exit_code == 0, result.output
     assert "ingested" in result.output
 
@@ -254,9 +248,7 @@ def test_cli_coverage_untested_json(repo: Path, tmp_path: Path) -> None:
     _write_cobertura(cov_xml, {"auth.py": [(10, 0), (11, 0)]})
     runner = CliRunner()
     runner.invoke(daemon_cmd, ["coverage", "ingest", str(cov_xml), "--repo", str(repo)])
-    result = runner.invoke(
-        daemon_cmd, ["coverage", "untested", "--repo", str(repo), "--json"]
-    )
+    result = runner.invoke(daemon_cmd, ["coverage", "untested", "--repo", str(repo), "--json"])
     assert result.exit_code == 0, result.output
     body = json.loads(result.output)
     assert "results" in body

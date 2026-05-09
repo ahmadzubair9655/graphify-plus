@@ -26,9 +26,8 @@ clips the result list to fit. The pre-clip count goes back as
 from __future__ import annotations
 
 import logging
-from typing import Any
-
 from pathlib import Path
+from typing import Any
 
 from ..core.adapters import Symbol
 from .indexes import InMemoryGraph
@@ -134,8 +133,15 @@ def whats_in(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
         return {"results": [], "more_available": 0, "extra": {"reason": "no path given"}}
 
     pr = {sid: score for sid, score in graph.pagerank_top}
-    kind_order = {"module": 0, "class": 1, "interface": 1, "type": 2, "function": 3,
-                  "method": 3, "const": 4}
+    kind_order = {
+        "module": 0,
+        "class": 1,
+        "interface": 1,
+        "type": 2,
+        "function": 3,
+        "method": 3,
+        "const": 4,
+    }
 
     if path in graph.by_path:
         symbols = graph.symbols_in_path(path)
@@ -353,9 +359,7 @@ def what_depends_on(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any
     return {"results": kept, "more_available": more, "extra": {"target": sid}}
 
 
-def what_does_this_depend_on(
-    graph: InMemoryGraph, args: dict[str, Any]
-) -> dict[str, Any]:
+def what_does_this_depend_on(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     """Outbound dependencies of the node."""
     sid, ambig = _resolve_symbol(graph, args)
     if ambig is not None:
@@ -705,7 +709,9 @@ def whats_risky(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
         if not sym:
             continue
         applicable = [
-            f for f in findings if _SEVERITY_RANK.get((f.get("severity") or "").upper(), 0) >= min_rank
+            f
+            for f in findings
+            if _SEVERITY_RANK.get((f.get("severity") or "").upper(), 0) >= min_rank
         ]
         if not applicable:
             continue
@@ -947,8 +953,7 @@ def _resolve_symbol(
         exact = [
             s
             for s in matches
-            if (s.get("qualified_name") or "").lower() == ql
-            or (s.get("name") or "").lower() == ql
+            if (s.get("qualified_name") or "").lower() == ql or (s.get("name") or "").lower() == ql
         ]
         if len(exact) == 1:
             return exact[0]["id"], None
@@ -956,8 +961,7 @@ def _resolve_symbol(
             "error": {
                 "code": "AMBIGUOUS",
                 "message": (
-                    f"{len(matches)} symbols match {label!r} — "
-                    f"use a more specific qualified_name"
+                    f"{len(matches)} symbols match {label!r} — use a more specific qualified_name"
                 ),
                 "detail": {
                     "candidates": [
@@ -975,9 +979,7 @@ def _resolve_symbol(
     return matches[0]["id"], None
 
 
-def _heavy_concept_search(
-    graph: InMemoryGraph, query: str, top_k: int
-) -> list[dict[str, Any]]:
+def _heavy_concept_search(graph: InMemoryGraph, query: str, top_k: int) -> list[dict[str, Any]]:
     """Fallback to the existing BM25 + community path. Operates on the
     *symbols already in memory* (no SQLite roundtrip) by reconstructing a
     minimal NetworkX view.
@@ -985,6 +987,7 @@ def _heavy_concept_search(
     try:
         import networkx as nx
         from rank_bm25 import BM25Okapi
+
         from .indexes import _safe_doc, _tokenize
     except Exception:  # noqa: BLE001
         return []
@@ -1096,9 +1099,7 @@ def _merge_plugin_handlers() -> None:
     except Exception as exc:  # noqa: BLE001
         import logging as _logging
 
-        _logging.getLogger("graphify_plus.daemon.handlers").debug(
-            "plugin merge failed: %s", exc
-        )
+        _logging.getLogger("graphify_plus.daemon.handlers").debug("plugin merge failed: %s", exc)
 
 
 _merge_plugin_handlers()

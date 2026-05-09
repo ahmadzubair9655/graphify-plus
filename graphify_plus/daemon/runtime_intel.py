@@ -14,7 +14,7 @@ import json
 import logging
 import re
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -176,7 +176,11 @@ def map_runtime_to_symbols(
                 candidates = syms
                 break
         match = next(
-            (s for s in candidates if (s.get("name") or "") == fn or (s.get("qualified_name") or "").endswith("." + fn)),
+            (
+                s
+                for s in candidates
+                if (s.get("name") or "") == fn or (s.get("qualified_name") or "").endswith("." + fn)
+            ),
             None,
         )
         if match is None:
@@ -207,9 +211,7 @@ def ingest_runtime(store: Store, repo_root: Path, report_path: Path) -> dict[str
 # ---- 7.3 stack trace → code linkage ----------------------------------
 
 
-_PYTHON_TRACEBACK_RE = re.compile(
-    r'File "([^"]+)", line (\d+)(?:, in ([\w.<>]+))?'
-)
+_PYTHON_TRACEBACK_RE = re.compile(r'File "([^"]+)", line (\d+)(?:, in ([\w.<>]+))?')
 _NODE_TRACEBACK_RE = re.compile(r"\(([^)]+):(\d+):\d+\)")
 
 

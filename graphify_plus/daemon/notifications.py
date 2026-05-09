@@ -31,7 +31,8 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, time as dtime, timezone
+from datetime import datetime, timezone
+from datetime import time as dtime
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +44,7 @@ LAST_SENT_FILE = "notification-rate-state.json"
 
 @dataclass
 class Sink:
-    kind: str            # 'terminal' | 'webhook' | 'slack' | 'osnotify' | 'email'
+    kind: str  # 'terminal' | 'webhook' | 'slack' | 'osnotify' | 'email'
     url: str = ""
     events: list[str] = field(default_factory=list)  # subset of {anomaly, weekly, trend}
     extra: dict[str, Any] = field(default_factory=dict)
@@ -216,9 +217,7 @@ def _os_notify(title: str, body: str) -> str:
     system = platform.system()
     try:
         if system == "Darwin":
-            script = (
-                f'display notification "{body[:240]}" with title "{title[:60]}"'
-            )
+            script = f'display notification "{body[:240]}" with title "{title[:60]}"'
             subprocess.run(["osascript", "-e", script], check=False, timeout=2)
         elif system == "Linux" and shutil.which("notify-send"):
             subprocess.run(["notify-send", title, body], check=False, timeout=2)

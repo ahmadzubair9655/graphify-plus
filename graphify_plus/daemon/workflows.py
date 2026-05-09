@@ -91,9 +91,7 @@ def extract_module_plan(graph: InMemoryGraph, pattern: str) -> RefactorPlan:
             description=f"Rewire {external} external inbound reference(s) to the new module path."
         )
     )
-    plan.steps.append(
-        RefactorStep(description="Run tests and architectural rules.")
-    )
+    plan.steps.append(RefactorStep(description="Run tests and architectural rules."))
     plan.risk = "HIGH" if external >= 20 else "MEDIUM" if external >= 5 else "LOW"
     return plan
 
@@ -113,7 +111,7 @@ def rename_plan(graph: InMemoryGraph, *, node: str, to: str) -> RefactorPlan:
     plan.estimated_changes = len(inbound) + 1
     plan.steps.append(
         RefactorStep(
-            description=f"Rename declaration",
+            description="Rename declaration",
             target=node,
             file=target.get("path") or "",
             line=int((target.get("span") or (0, 0))[0]),
@@ -240,8 +238,16 @@ def compare_revs(repo: Path, rev_a: str, rev_b: str) -> RevisionDelta:
         return RevisionDelta(rev_a=rev_a, rev_b=rev_b, files_changed=0, insertions=0, deletions=0)
     m = re.search(r"(\d+)\s+files?\s+changed", out)
     files = int(m.group(1)) if m else 0
-    ins = int((re.search(r"(\d+)\s+insertion", out) or re.match("0", "0")).group(1)) if re.search(r"(\d+)\s+insertion", out) else 0
-    dels = int((re.search(r"(\d+)\s+deletion", out) or re.match("0", "0")).group(1)) if re.search(r"(\d+)\s+deletion", out) else 0
+    ins = (
+        int((re.search(r"(\d+)\s+insertion", out) or re.match("0", "0")).group(1))
+        if re.search(r"(\d+)\s+insertion", out)
+        else 0
+    )
+    dels = (
+        int((re.search(r"(\d+)\s+deletion", out) or re.match("0", "0")).group(1))
+        if re.search(r"(\d+)\s+deletion", out)
+        else 0
+    )
     paths: list[str] = []
     try:
         names = subprocess.check_output(
@@ -287,7 +293,7 @@ def generate_module_docs(graph: InMemoryGraph, module: str) -> str:
     """Produce a Markdown reference for ``module`` (a top-level dir)."""
     matched: list[dict[str, Any]] = []
     whole_repo = module in (".", "./", "")
-    for sid, sym in graph.by_id.items():
+    for _sid, sym in graph.by_id.items():
         path = sym.get("path") or ""
         if not path:
             continue
@@ -302,14 +308,16 @@ def generate_module_docs(graph: InMemoryGraph, module: str) -> str:
     out: list[str] = []
     out.append(f"# {module}")
     out.append("")
-    out.append(f"_{len(matched)} symbol(s) across {len({s.get('path') for s in matched})} file(s)._")
+    out.append(
+        f"_{len(matched)} symbol(s) across {len({s.get('path') for s in matched})} file(s)._"
+    )
     out.append("")
     out.append("## God nodes (most central)")
     out.append("")
     for s in god:
         out.append(
             f"- **{s.get('qualified_name') or s.get('name')}** "
-            f"`{s.get('path')}:{(s.get('span') or (0,0))[0]}`"
+            f"`{s.get('path')}:{(s.get('span') or (0, 0))[0]}`"
         )
     out.append("")
     out.append("## Public API surface")
@@ -320,7 +328,7 @@ def generate_module_docs(graph: InMemoryGraph, module: str) -> str:
         for s in public[:20]:
             out.append(
                 f"- {s.get('qualified_name') or s.get('name')} "
-                f"`{s.get('path')}:{(s.get('span') or (0,0))[0]}`"
+                f"`{s.get('path')}:{(s.get('span') or (0, 0))[0]}`"
             )
     out.append("")
     out.append("## Files in this module")
@@ -441,7 +449,9 @@ def workspace_for_path(workspaces: list[Workspace], path: str) -> Workspace | No
     return None
 
 
-def cross_workspace_edges(graph: InMemoryGraph, workspaces: list[Workspace]) -> list[dict[str, Any]]:
+def cross_workspace_edges(
+    graph: InMemoryGraph, workspaces: list[Workspace]
+) -> list[dict[str, Any]]:
     edges: list[dict[str, Any]] = []
     for src, neighbours in graph.out_neighbours.items():
         src_sym = graph.by_id.get(src)

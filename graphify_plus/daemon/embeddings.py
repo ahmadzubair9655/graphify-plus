@@ -60,7 +60,9 @@ def state(*, model: str | None = None) -> EmbeddingState:
         from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]
 
         _MODEL = SentenceTransformer(name)
-        _STATE = EmbeddingState(available=True, model_name=name, dim=_MODEL.get_sentence_embedding_dimension())
+        _STATE = EmbeddingState(
+            available=True, model_name=name, dim=_MODEL.get_sentence_embedding_dimension()
+        )
     except ImportError:
         _STATE = EmbeddingState(
             available=False,

@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from ..runtime.store import Store, cache_path
-from .handlers import HANDLERS, DEFAULT_BUDGET_TOKENS
+from .handlers import DEFAULT_BUDGET_TOKENS, HANDLERS
 from .indexes import InMemoryGraph
 from .protocol import (
     DAEMON_DIR,
@@ -147,7 +147,7 @@ class DaemonServer:
             while not self._stop.is_set():
                 try:
                     conn, _ = s.accept()
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 except OSError:
                     if self._stop.is_set():
@@ -263,10 +263,9 @@ class DaemonServer:
             s.connect(str(self.socket_path))
             s.close()
             raise RuntimeError(
-                f"daemon already listening on {self.socket_path} — "
-                f"run `gp daemon stop` first"
+                f"daemon already listening on {self.socket_path} — run `gp daemon stop` first"
             )
-        except (ConnectionRefusedError, FileNotFoundError, socket.timeout, OSError):
+        except (TimeoutError, ConnectionRefusedError, FileNotFoundError, OSError):
             try:
                 self.socket_path.unlink()
             except OSError:

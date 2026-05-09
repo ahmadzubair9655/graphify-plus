@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 from click.testing import CliRunner
 
 from graphify_plus.daemon.audit_log import (
     append as audit_append,
+)
+from graphify_plus.daemon.audit_log import (
     rebuild_from_log,
     revert,
 )
@@ -31,7 +32,6 @@ from graphify_plus.daemon.live_profiler import (
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 from graphify_plus.interface.mcp_server import TOOLS
-
 
 # ---- Layer 5.4 — more aliases ------------------------------------------
 
@@ -71,10 +71,8 @@ def test_live_attach_once_routes_to_node(monkeypatch, tmp_path: Path) -> None:
         called["hit"] = True
         return tmp_path / "fake.txt"
 
-    monkeypatch.setattr(
-        "graphify_plus.daemon.live_profiler.attach_node_inspect", fake_attach
-    )
-    out = live_attach_once(LiveAttachConfig(pid=1234, adapter="node-inspect"))
+    monkeypatch.setattr("graphify_plus.daemon.live_profiler.attach_node_inspect", fake_attach)
+    live_attach_once(LiveAttachConfig(pid=1234, adapter="node-inspect"))
     assert called["hit"]
 
 
@@ -133,8 +131,22 @@ def test_collect_commits_handles_no_git(tmp_path: Path) -> None:
 
 def test_group_separates_conventional_from_other() -> None:
     rows = [
-        CommitEntry(sha="a" * 40, short_sha="aaaa", type="feat", scope="x", message="m1", full_subject="feat(x): m1"),
-        CommitEntry(sha="b" * 40, short_sha="bbbb", type="other", scope="", message="random", full_subject="random"),
+        CommitEntry(
+            sha="a" * 40,
+            short_sha="aaaa",
+            type="feat",
+            scope="x",
+            message="m1",
+            full_subject="feat(x): m1",
+        ),
+        CommitEntry(
+            sha="b" * 40,
+            short_sha="bbbb",
+            type="other",
+            scope="",
+            message="random",
+            full_subject="random",
+        ),
     ]
     rep = group(rows)
     assert "feat" in rep.by_type
@@ -144,9 +156,30 @@ def test_group_separates_conventional_from_other() -> None:
 def test_render_changelog_full() -> None:
     rep = group(
         [
-            CommitEntry(sha="1", short_sha="1", type="feat", scope="daemon", message="add X", full_subject="feat(daemon): add X"),
-            CommitEntry(sha="2", short_sha="2", type="fix", scope="", message="fix Y", full_subject="fix: fix Y"),
-            CommitEntry(sha="3", short_sha="3", type="other", scope="", message="random", full_subject="random"),
+            CommitEntry(
+                sha="1",
+                short_sha="1",
+                type="feat",
+                scope="daemon",
+                message="add X",
+                full_subject="feat(daemon): add X",
+            ),
+            CommitEntry(
+                sha="2",
+                short_sha="2",
+                type="fix",
+                scope="",
+                message="fix Y",
+                full_subject="fix: fix Y",
+            ),
+            CommitEntry(
+                sha="3",
+                short_sha="3",
+                type="other",
+                scope="",
+                message="random",
+                full_subject="random",
+            ),
         ]
     )
     rep.since_ref = "v1.0.0"

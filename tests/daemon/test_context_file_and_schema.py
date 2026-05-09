@@ -8,7 +8,6 @@ import pytest
 from click.testing import CliRunner
 
 from graphify_plus.daemon.context_file import (
-    OWNED_RE,
     build_section,
     render_section,
     strip_owned_section,
@@ -29,7 +28,6 @@ from graphify_plus.daemon.schema_version import (
     stamp,
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
-
 
 # ---- Layer 21 ------------------------------------------------------------
 
@@ -98,9 +96,7 @@ def test_update_file_creates_when_missing(tmp_path: Path) -> None:
 
 def test_update_file_replaces_existing_section(tmp_path: Path) -> None:
     p = tmp_path / "CLAUDE.md"
-    p.write_text(
-        "# x\n<!-- graphify-plus:start -->\nold\n<!-- graphify-plus:end -->\nfooter\n"
-    )
+    p.write_text("# x\n<!-- graphify-plus:start -->\nold\n<!-- graphify-plus:end -->\nfooter\n")
     new_body = "<!-- graphify-plus:start -->\nnew\n<!-- graphify-plus:end -->"
     res = update_file(p, new_body)
     assert res["action"] == "updated"
@@ -139,9 +135,7 @@ def test_cli_claude_md_update(repo: Path) -> None:
 
 def test_cli_claude_md_strip(tmp_path: Path) -> None:
     p = tmp_path / "CLAUDE.md"
-    p.write_text(
-        "outer\n<!-- graphify-plus:start -->\nx\n<!-- graphify-plus:end -->\n"
-    )
+    p.write_text("outer\n<!-- graphify-plus:start -->\nx\n<!-- graphify-plus:end -->\n")
     runner = CliRunner()
     result = runner.invoke(daemon_cmd, ["claude-md", "strip", "--repo", str(tmp_path)])
     assert result.exit_code == 0, result.output

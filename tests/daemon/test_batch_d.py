@@ -8,18 +8,17 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from graphify_plus.daemon.distribution import (
-    VersionInfo,
     _newer,
-    cache_path as version_cache,
-    is_disabled,
     version_check,
 )
+from graphify_plus.daemon.distribution import (
+    cache_path as version_cache,
+)
 from graphify_plus.daemon.local_llm import (
-    LLMBackend,
     LLMRouting,
     RoutingRule,
-    deterministic_seed,
     detect_backends,
+    deterministic_seed,
     load_routing,
     route_for_path,
 )
@@ -44,7 +43,6 @@ from graphify_plus.daemon.tutorial import (
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- Layer 22 ------------------------------------------------------------
 
@@ -80,9 +78,7 @@ def test_load_routing_missing_returns_default(tmp_path: Path) -> None:
 def test_load_routing_yaml(tmp_path: Path) -> None:
     p = tmp_path / ".graphify_plus" / "llm-routing.yaml"
     p.parent.mkdir(parents=True)
-    p.write_text(
-        "default: local\nrules:\n  - pattern: 'src/'\n    backend: cloud\n"
-    )
+    p.write_text("default: local\nrules:\n  - pattern: 'src/'\n    backend: cloud\n")
     routing = load_routing(tmp_path)
     assert routing.default == "local"
     assert routing.rules[0].pattern == "src/"

@@ -34,7 +34,6 @@ from graphify_plus.daemon.team import (
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 
-
 # ---- Layer 11.1 — team graph -------------------------------------------
 
 
@@ -95,9 +94,7 @@ def test_annotations_by_target(tmp_path: Path) -> None:
 
 def test_cli_team_init(tmp_path: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["team", "init", str(tmp_path / "team")]
-    )
+    result = runner.invoke(daemon_cmd, ["team", "init", str(tmp_path / "team")])
     assert result.exit_code == 0
     assert (tmp_path / "team" / "manifest.json").exists()
 
@@ -107,7 +104,16 @@ def test_cli_team_push_pull(tmp_path: Path) -> None:
     runner.invoke(daemon_cmd, ["team", "init", str(tmp_path / "team")])
     push = runner.invoke(
         daemon_cmd,
-        ["team", "push-annotation", "sid-1", "hello", "--root", str(tmp_path / "team"), "--author", "alice"],
+        [
+            "team",
+            "push-annotation",
+            "sid-1",
+            "hello",
+            "--root",
+            str(tmp_path / "team"),
+            "--author",
+            "alice",
+        ],
     )
     assert push.exit_code == 0
     pull = runner.invoke(
@@ -140,7 +146,12 @@ def test_pre_edit_unknown_target_notes(snapshot: InMemoryGraph) -> None:
 
 def test_pre_edit_low_coverage_notes(snapshot: InMemoryGraph) -> None:
     target_sid = next(iter(snapshot.by_id))
-    snapshot.coverage[target_sid] = {"pct": 0.05, "lines_covered": 1, "lines_total": 20, "source": "x"}
+    snapshot.coverage[target_sid] = {
+        "pct": 0.05,
+        "lines_covered": 1,
+        "lines_total": 20,
+        "source": "x",
+    }
     sym = snapshot.by_id[target_sid]
     rep = pre_edit(snapshot, sym.get("name") or sym.get("qualified_name") or "?")
     assert any("low coverage" in n for n in rep.notes)
@@ -155,9 +166,7 @@ def test_cli_session_status(repo: Path) -> None:
 
 def test_cli_pre_edit(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["pre-edit", "AuthService.login", "--repo", str(repo)]
-    )
+    result = runner.invoke(daemon_cmd, ["pre-edit", "AuthService.login", "--repo", str(repo)])
     assert result.exit_code == 0
     assert "pre-edit ritual" in result.output
 
@@ -200,7 +209,9 @@ def test_load_corpus(tmp_path: Path) -> None:
                 {
                     "name": "x",
                     "repo_path": "<x>",
-                    "checks": [{"op": "find_by_name", "args": {"label": "y"}, "expect_at_least": 1}],
+                    "checks": [
+                        {"op": "find_by_name", "args": {"label": "y"}, "expect_at_least": 1}
+                    ],
                 }
             ]
         )

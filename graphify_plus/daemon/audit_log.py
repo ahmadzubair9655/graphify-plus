@@ -36,10 +36,10 @@ AUDIT_FILE = "audit.jsonl"
 class AuditRecord:
     id: str
     ts: str
-    kind: str          # 'annotation' | 'correction' | 'ingest' | 'rebuild' | 'tombstone'
+    kind: str  # 'annotation' | 'correction' | 'ingest' | 'rebuild' | 'tombstone'
     agent: str = ""
     namespace: str = ""
-    target: str = ""   # symbol_id or other entity id
+    target: str = ""  # symbol_id or other entity id
     payload: dict[str, Any] = field(default_factory=dict)
     parent_id: str = ""
 
@@ -122,16 +122,12 @@ def revert(repo: Path, record_id: str, *, agent: str = "") -> AuditRecord:
     )
 
 
-def latest_state(
-    repo: Path, *, namespace: str | None = None
-) -> dict[tuple[str, str], AuditRecord]:
+def latest_state(repo: Path, *, namespace: str | None = None) -> dict[tuple[str, str], AuditRecord]:
     """For each (namespace, target) pair, return the latest non-tombstoned
     record. Tombstones supersede the record they reference.
     """
     records = read_all(repo)
-    tombstoned: set[str] = {
-        r.target for r in records if r.kind == "tombstone"
-    }
+    tombstoned: set[str] = {r.target for r in records if r.kind == "tombstone"}
     cur: dict[tuple[str, str], AuditRecord] = {}
     for r in records:
         if r.kind == "tombstone":

@@ -98,8 +98,7 @@ def test_synthesise_end_to_end_persists_edges(tmp_path: Path) -> None:
 
 def test_db_tables_from_sql_files(tmp_path: Path) -> None:
     (tmp_path / "schema.sql").write_text(
-        "CREATE TABLE users (id INT PRIMARY KEY);\n"
-        "CREATE TABLE IF NOT EXISTS orders (id INT);\n"
+        "CREATE TABLE users (id INT PRIMARY KEY);\nCREATE TABLE IF NOT EXISTS orders (id INT);\n"
     )
     res = ingest(tmp_path, parallel=False)
     store = Store(cache_path(tmp_path))
@@ -163,9 +162,7 @@ def test_cross_stack_handler_summary(snapshot: InMemoryGraph) -> None:
 def test_cli_cross_stack_summary(tmp_path: Path) -> None:
     repo = _build_repo_with_http(tmp_path)
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["cross-stack", "--repo", str(repo), "--rebuild"]
-    )
+    result = runner.invoke(daemon_cmd, ["cross-stack", "--repo", str(repo), "--rebuild"])
     assert result.exit_code == 0, result.output
     assert "HTTP edge" in result.output
 

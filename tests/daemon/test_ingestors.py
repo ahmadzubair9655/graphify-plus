@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from click.testing import CliRunner
 
 from graphify_plus.daemon.handlers import why_does_this_exist
@@ -20,11 +19,9 @@ from graphify_plus.daemon.ingestors import (
     load_ingest_nodes,
     parse_adr,
     parse_adr_folder,
-    store_ingest_nodes,
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- ADR -----------------------------------------------------------------
 
@@ -204,9 +201,7 @@ def test_cli_ingest_adr(repo: Path, tmp_path: Path) -> None:
     folder.mkdir()
     (folder / "0001-x.md").write_text("# X\n## Status\nAccepted\n")
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["ingest", "adr", str(folder), "--repo", str(repo)]
-    )
+    result = runner.invoke(daemon_cmd, ["ingest", "adr", str(folder), "--repo", str(repo)])
     assert result.exit_code == 0, result.output
     assert "ADR" in result.output
 
@@ -217,7 +212,5 @@ def test_cli_ingest_github_runs_with_mocked_gh(repo: Path) -> None:
         "graphify_plus.daemon.ingestors._gh",
         side_effect=[json.dumps([]), json.dumps([])],
     ):
-        result = runner.invoke(
-            daemon_cmd, ["ingest", "github", "--repo", str(repo)]
-        )
+        result = runner.invoke(daemon_cmd, ["ingest", "github", "--repo", str(repo)])
     assert result.exit_code == 0, result.output

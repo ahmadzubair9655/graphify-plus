@@ -33,7 +33,7 @@ HUGE_GRAPH_THRESHOLD = 100_000  # nodes
 
 @dataclass
 class CoarseNode:
-    id: str           # synthetic, e.g. "module:src/auth"
+    id: str  # synthetic, e.g. "module:src/auth"
     label: str
     n_symbols: int = 0
     n_edges: int = 0
@@ -104,7 +104,9 @@ def is_huge(graph: InMemoryGraph) -> bool:
     return len(graph.by_id) >= HUGE_GRAPH_THRESHOLD
 
 
-def sampled_pagerank(graph: InMemoryGraph, k: int = 50, *, seed: int = 1337) -> tuple[list[tuple[str, float]], Approximate]:
+def sampled_pagerank(
+    graph: InMemoryGraph, k: int = 50, *, seed: int = 1337
+) -> tuple[list[tuple[str, float]], Approximate]:
     """Sampled PageRank approximation for huge graphs.
 
     Walks ``k * 8`` random restarts; each step jumps to a random

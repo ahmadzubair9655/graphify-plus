@@ -85,9 +85,7 @@ def test_cli_onboard_json_round_trip(repo: Path) -> None:
         n_files=int(body["n_files"]),
         central=[WalkStop(**s) for s in body["central"]],
         welltested_examples=[WalkStop(**s) for s in body["welltested_examples"]],
-        by_module={
-            k: [WalkStop(**s) for s in v] for k, v in body["by_module"].items()
-        },
+        by_module={k: [WalkStop(**s) for s in v] for k, v in body["by_module"].items()},
     )
     md = format_plan(plan)
     assert "Onboarding" in md

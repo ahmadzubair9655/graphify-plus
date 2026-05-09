@@ -212,9 +212,7 @@ def format_plan(plan: Plan) -> str:
         lines.append("## Blast radius (direct dependents)")
         lines.append("")
         for n in plan.blast_radius:
-            lines.append(
-                f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}`"
-            )
+            lines.append(f"- {n.label} [{n.kind}] `{n.source_file}:{n.line_number}`")
         lines.append("")
     if plan.notes:
         lines.append("## Notes")

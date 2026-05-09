@@ -19,7 +19,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 import sys
 import time
@@ -72,7 +71,16 @@ def session_start(repo: Path) -> dict[str, Any]:
     # 1. Detached daemon.
     try:
         subprocess.run(
-            [sys.executable, "-m", "graphify_plus", "daemon", "start", "--repo", str(repo), "--detach"],
+            [
+                sys.executable,
+                "-m",
+                "graphify_plus",
+                "daemon",
+                "start",
+                "--repo",
+                str(repo),
+                "--detach",
+            ],
             check=False,
             timeout=10,
             stdout=subprocess.DEVNULL,
@@ -84,8 +92,8 @@ def session_start(repo: Path) -> dict[str, Any]:
 
     # 2. CLAUDE.md owned section refresh.
     try:
-        from .context_file import build_section, render_section, update_all_known
         from ..runtime.store import Store, cache_path
+        from .context_file import build_section, render_section, update_all_known
 
         if cache_path(repo).exists():
             store = Store(cache_path(repo))
@@ -103,8 +111,8 @@ def session_start(repo: Path) -> dict[str, Any]:
 
     # 3. Health snapshot.
     try:
-        from .anomaly import append_snapshot, take_snapshot
         from ..runtime.store import Store, cache_path
+        from .anomaly import append_snapshot, take_snapshot
 
         if cache_path(repo).exists():
             store = Store(cache_path(repo))
@@ -136,9 +144,9 @@ def session_status(repo: Path) -> SessionState:
     claude_md = (repo / "CLAUDE.md").exists()
     health_recent = False
     try:
+        from ..runtime.store import Store, cache_path
         from .coverage import coverage_summary
         from .schema_version import DAEMON_SCHEMA_VERSION  # noqa: F401
-        from ..runtime.store import Store, cache_path
 
         if cache_path(repo).exists():
             store = Store(cache_path(repo), integrity_check=False)
@@ -155,9 +163,7 @@ def session_status(repo: Path) -> SessionState:
             from datetime import datetime, timezone
 
             try:
-                ts = datetime.fromisoformat(
-                    rows[-1]["ts"].replace("Z", "+00:00")
-                ).timestamp()
+                ts = datetime.fromisoformat(rows[-1]["ts"].replace("Z", "+00:00")).timestamp()
                 health_recent = (time.time() - ts) < 24 * 3600
             except (ValueError, KeyError):
                 health_recent = False
@@ -226,7 +232,7 @@ def pre_edit(graph: InMemoryGraph, target: str) -> PreEditReport:
     name = (sym.get("name") or "").lower()
     tests: list[dict[str, Any]] = []
     if name:
-        for other_sid, other_sym in graph.by_id.items():
+        for _other_sid, other_sym in graph.by_id.items():
             path = (other_sym.get("path") or "").lower()
             if "test" not in path:
                 continue

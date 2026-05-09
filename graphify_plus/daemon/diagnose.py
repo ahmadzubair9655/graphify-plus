@@ -270,12 +270,9 @@ def _last_hour_summary(path: Path) -> dict[str, Any]:
 
 def _top_ops(summary: dict[str, Any]) -> list[dict[str, Any]]:
     by_op = summary.get("by_op") or {}
-    rows = sorted(
-        by_op.items(), key=lambda kv: -int(kv[1].get("calls", 0))
-    )[:5]
+    rows = sorted(by_op.items(), key=lambda kv: -int(kv[1].get("calls", 0)))[:5]
     return [
-        {"op": op, "calls": info["calls"], "p50_ms": info.get("p50_ms", 0.0)}
-        for op, info in rows
+        {"op": op, "calls": info["calls"], "p50_ms": info.get("p50_ms", 0.0)} for op, info in rows
     ]
 
 
@@ -393,15 +390,13 @@ def format_diagnose(report: dict[str, Any]) -> str:
             f"fresh_rate={t.get('fresh_rate', 0):.0%})"
         )
         lines.append(
-            f"  last hour   : {last.get('events', 0)} events, "
-            f"{last.get('errors', 0)} errors"
+            f"  last hour   : {last.get('events', 0)} events, {last.get('errors', 0)} errors"
         )
         if t.get("top_ops"):
             lines.append("  top ops:")
             for row in t["top_ops"]:
                 lines.append(
-                    f"    {row['op']:<24} calls={row['calls']:>5}  "
-                    f"p50={row.get('p50_ms', 0)}ms"
+                    f"    {row['op']:<24} calls={row['calls']:>5}  p50={row.get('p50_ms', 0)}ms"
                 )
     else:
         lines.append("  no telemetry yet")
@@ -409,7 +404,7 @@ def format_diagnose(report: dict[str, Any]) -> str:
 
     p = report.get("process", {})
     if p.get("rss_mb") is not None:
-        lines.append(f"## Process")
+        lines.append("## Process")
         lines.append(f"  RSS    : {p['rss_mb']} MB")
         if "cpu_percent" in p:
             lines.append(f"  CPU%   : {p['cpu_percent']}")

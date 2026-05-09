@@ -81,9 +81,7 @@ def test_who_calls_returns_ambiguous_for_overloaded_name(snapshot: InMemoryGraph
     # Either resolved by the existing exact-qname rule (one wins) or AMBIGUOUS
     # — both are acceptable; the contract is that the caller never gets a
     # silently-wrong answer when their name is non-unique.
-    assert resp.get("error", {}).get("code") == "AMBIGUOUS" or _has(
-        resp["results"], "auth.helper"
-    )
+    assert resp.get("error", {}).get("code") == "AMBIGUOUS" or _has(resp["results"], "auth.helper")
 
 
 def test_who_calls_not_found(snapshot: InMemoryGraph) -> None:

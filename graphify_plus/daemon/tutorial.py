@@ -127,7 +127,7 @@ RECIPES: list[Recipe] = [
     Recipe(
         name="untested-public-apis",
         description="Exported functions or classes with <50% test coverage.",
-        gpl='FIND nodes WHERE exported == 1 AND test_coverage < 0.5',
+        gpl="FIND nodes WHERE exported == 1 AND test_coverage < 0.5",
     ),
     Recipe(
         name="dependency-cycles",

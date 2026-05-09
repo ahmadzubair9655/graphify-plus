@@ -397,7 +397,9 @@ def ingest_long_tail(store, repo_root: Path, *, kinds: list[str] | None = None) 
         rows = []
         for f in (repo_root / "k8s").rglob("*.yaml") if (repo_root / "k8s").exists() else []:
             rows.extend(parse_k8s_manifest(f))
-        for f in (repo_root / "manifests").rglob("*.yaml") if (repo_root / "manifests").exists() else []:
+        for f in (
+            (repo_root / "manifests").rglob("*.yaml") if (repo_root / "manifests").exists() else []
+        ):
             rows.extend(parse_k8s_manifest(f))
         if rows:
             store_ingest_nodes(store, rows, replace_kind="k8s_resource")

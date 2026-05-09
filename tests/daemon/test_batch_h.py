@@ -3,18 +3,19 @@ notifications (19), backward migrations (21.4), inline annotations (17.2)."""
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, time as dtime, timezone
+from datetime import datetime
+from datetime import time as dtime
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from graphify_plus.daemon.correctness_sampling import (
-    DEFAULT_SAMPLING_RATE,
     VerificationRecord,
     disagreement_rate,
-    record as record_verification,
     should_sample,
+)
+from graphify_plus.daemon.correctness_sampling import (
+    record as record_verification,
 )
 from graphify_plus.daemon.lsp_shim import LSPServer
 from graphify_plus.daemon.notifications import (
@@ -43,7 +44,6 @@ from graphify_plus.daemon.writeback_proposals import (
     propose,
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
-
 
 # ---- Layer 4.2 — writeback proposals -----------------------------------
 
@@ -165,9 +165,7 @@ def test_disagreement_rate_aggregates(repo: Path) -> None:
 
 def test_cli_correctness_stats(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["correctness-stats", "--repo", str(repo), "--json"]
-    )
+    result = runner.invoke(daemon_cmd, ["correctness-stats", "--repo", str(repo), "--json"])
     assert result.exit_code == 0
 
 
@@ -240,7 +238,9 @@ def test_dispatch_quiet_hours_skips(tmp_path: Path) -> None:
 def test_backward_migration_runs() -> None:
     @register_migration(2, 1)
     def _back(payload: dict) -> dict:
-        return declare_lossy({k: v for k, v in payload.items() if k != "extra_v2"}, dropped=["extra_v2"])
+        return declare_lossy(
+            {k: v for k, v in payload.items() if k != "extra_v2"}, dropped=["extra_v2"]
+        )
 
     body = {"_schema_version": 2, "extra_v2": "x", "core": "y"}
     out = migrate(body, target=1)

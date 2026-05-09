@@ -205,9 +205,7 @@ def map_to_symbols(
     # first order" — O(symbols-in-file) per line.
     for syms in by_path.values():
         syms.sort(
-            key=lambda s: (
-                ((s.get("span") or (0, 0))[1] - (s.get("span") or (0, 0))[0]) or 1_000_000
-            )
+            key=lambda s: ((s.get("span") or (0, 0))[1] - (s.get("span") or (0, 0))[0]) or 1_000_000
         )
 
     accum: dict[str, list[int]] = {}  # symbol_id → [covered, total]
@@ -307,10 +305,7 @@ def store_coverage(store: Store, rows: list[SymbolCoverage], *, source: str) -> 
         store.conn.executemany(
             "INSERT INTO coverage(symbol_id, lines_covered, lines_total, pct, source, ingested_at)"
             " VALUES (?, ?, ?, ?, ?, ?)",
-            [
-                (r.symbol_id, r.lines_covered, r.lines_total, r.pct, source, now)
-                for r in rows
-            ],
+            [(r.symbol_id, r.lines_covered, r.lines_total, r.pct, source, now) for r in rows],
         )
     return len(rows)
 

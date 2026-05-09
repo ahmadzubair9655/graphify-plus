@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 from graphify_plus.daemon.hyperscale import (
     Shard,
@@ -14,7 +13,6 @@ from graphify_plus.daemon.hyperscale import (
 )
 from graphify_plus.daemon.live_profiler import (
     LiveAttachConfig,
-    ProfilerAdapter,
     detect_adapters,
 )
 from graphify_plus.daemon.slack_ingest import (
@@ -27,7 +25,6 @@ from graphify_plus.daemon.slack_ingest import (
     threads_from_messages,
 )
 from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- Layer 6.2 — Slack ingest ------------------------------------------
 
@@ -159,9 +156,7 @@ def test_load_shards_missing(tmp_path: Path) -> None:
 def test_load_shards_yaml(tmp_path: Path) -> None:
     p = tmp_path / ".graphify_plus" / "shards.yaml"
     p.parent.mkdir(parents=True)
-    p.write_text(
-        "shards:\n  - name: api\n    path: /tmp/api\n  - name: web\n    path: /tmp/web\n"
-    )
+    p.write_text("shards:\n  - name: api\n    path: /tmp/api\n  - name: web\n    path: /tmp/web\n")
     cfg = load_shards(tmp_path)
     assert {s.name for s in cfg.shards} == {"api", "web"}
 

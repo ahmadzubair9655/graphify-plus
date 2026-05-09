@@ -21,12 +21,11 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from ..core.adapters import Symbol
-from ..runtime.store import Store
 
 log = logging.getLogger("graphify_plus.daemon.iac_config_license")
 
@@ -97,7 +96,9 @@ def synthesise_iac_edges(
             owner = None
             for s in sorted(
                 syms,
-                key=lambda s: ((s.get("span") or (0, 0))[1] - (s.get("span") or (0, 0))[0]) or 1_000_000,
+                key=lambda s: (
+                    ((s.get("span") or (0, 0))[1] - (s.get("span") or (0, 0))[0]) or 1_000_000
+                ),
             ):
                 span = s.get("span") or (0, 0)
                 if int(span[0]) <= line_num <= int(span[1]):
@@ -134,7 +135,7 @@ _FF_REF = re.compile(r'\b(?:feature_flag|launchdarkly|flags\.is_enabled)\s*\(\s*
 @dataclass
 class ConfigKey:
     key: str
-    kind: str             # 'env' | 'feature_flag'
+    kind: str  # 'env' | 'feature_flag'
     file: str
     line: int
 
@@ -188,7 +189,7 @@ def detect_declared_env(repo: Path) -> set[str]:
                 continue
     for compose in repo.rglob("docker-compose*.yml"):
         try:
-            for m in re.finditer(r'^\s*([A-Z][A-Z0-9_]+)\s*:', compose.read_text(encoding="utf-8")):
+            for m in re.finditer(r"^\s*([A-Z][A-Z0-9_]+)\s*:", compose.read_text(encoding="utf-8")):
                 declared.add(m.group(1))
         except OSError:
             continue
@@ -219,7 +220,7 @@ _PERMISSIVE = {"MIT", "BSD", "Apache-2.0", "ISC", "Unlicense", "0BSD"}
 class PackageLicense:
     package: str
     license: str
-    source: str   # 'pyproject' | 'package.json' | 'requirements'
+    source: str  # 'pyproject' | 'package.json' | 'requirements'
 
     def is_strong_copyleft(self) -> bool:
         return any(self.license.upper().startswith(g.upper()) for g in _GPL_FAMILY)
@@ -235,9 +236,7 @@ def detect_python_licenses(repo: Path) -> list[PackageLicense]:
             return out
         m = re.search(r'license\s*=\s*\{?\s*text\s*=\s*"([^"]+)"', text)
         if m:
-            out.append(
-                PackageLicense(package=repo.name, license=m.group(1), source="pyproject")
-            )
+            out.append(PackageLicense(package=repo.name, license=m.group(1), source="pyproject"))
     return out
 
 

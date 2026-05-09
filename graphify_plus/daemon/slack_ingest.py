@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +46,7 @@ class ChatMessage:
 class ChatAllowlist:
     channels: list[str] = field(default_factory=list)
     users_excluded: list[str] = field(default_factory=list)
-    private_default: str = "skip"   # 'skip' | 'allow' (allow only if explicit per-channel)
+    private_default: str = "skip"  # 'skip' | 'allow' (allow only if explicit per-channel)
 
 
 def load_allowlist(repo: Path) -> ChatAllowlist:
@@ -103,9 +102,7 @@ def parse_slack_export(path: Path) -> list[ChatMessage]:
     return out
 
 
-def filter_by_allowlist(
-    messages: list[ChatMessage], allow: ChatAllowlist
-) -> list[ChatMessage]:
+def filter_by_allowlist(messages: list[ChatMessage], allow: ChatAllowlist) -> list[ChatMessage]:
     if not allow.channels:
         return []
     out: list[ChatMessage] = []

@@ -128,9 +128,7 @@ def test_cli_rules_check_fail_on_error(repo: Path) -> None:
 
 def test_cli_rules_check_json_output(repo: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(
-        daemon_cmd, ["rules", "check", "--repo", str(repo), "--json"]
-    )
+    result = runner.invoke(daemon_cmd, ["rules", "check", "--repo", str(repo), "--json"])
     assert result.exit_code == 0, result.output
     body = json.loads(result.output)
     assert "extra" in body

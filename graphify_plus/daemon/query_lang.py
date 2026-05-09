@@ -130,9 +130,7 @@ class _Parser:
 
     def expect(self, kind: str, value: str | None = None) -> tuple[str, str]:
         t = self.take()
-        if t[0] != kind or (
-            value is not None and (t[1] or "").upper() != value.upper()
-        ):
+        if t[0] != kind or (value is not None and (t[1] or "").upper() != value.upper()):
             raise QueryError(f"Expected {value or kind}, got {t[1]!r}")
         return t
 
@@ -342,8 +340,7 @@ def _row_for(graph: InMemoryGraph, sid: str) -> dict[str, Any]:
         "source_file": sym.get("path") or "",
         "line_number": int(span[0]) if span else 0,
         "end_line": int(span[1]) if span and len(span) > 1 else 0,
-        "degree": len(graph.out_neighbours.get(sid, []))
-        + len(graph.in_neighbours.get(sid, [])),
+        "degree": len(graph.out_neighbours.get(sid, [])) + len(graph.in_neighbours.get(sid, [])),
         "test_coverage": float(cov.get("pct", 0.0)) if cov else 0.0,
         "exported": 1 if sym.get("exported") else 0,
         "confidence": 1.0,

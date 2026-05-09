@@ -13,8 +13,6 @@ from graphify_plus.daemon.iac_config_license import (
     PackageLicense,
     detect_config_keys,
     detect_drift,
-    detect_npm_licenses,
-    detect_python_licenses,
     detect_terraform_resources,
     license_audit,
     synthesise_iac_edges,
@@ -31,7 +29,6 @@ from graphify_plus.daemon.runtime_intel import (
 )
 from graphify_plus.daemon.workflows import (
     Workspace,
-    cross_workspace_edges,
     extract_decisions,
     extract_module_plan,
     generate_module_docs,
@@ -44,7 +41,6 @@ from graphify_plus.daemon.workflows import (
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
 from graphify_plus.runtime.store import Store, cache_path
-
 
 # ---- 7.2 runtime ---------------------------------------------------------
 
@@ -139,9 +135,7 @@ def test_synthesise_iac_edges_finds_consumer(tmp_path: Path, snapshot: InMemoryG
     from graphify_plus.daemon.iac_config_license import IaCResource
 
     resources = [IaCResource(type="aws_s3_bucket", name="logs", file="main.tf", line=1)]
-    edges = synthesise_iac_edges(
-        resources, list(snapshot.by_id.values()), snapshot.repo_root
-    )
+    edges = synthesise_iac_edges(resources, list(snapshot.by_id.values()), snapshot.repo_root)
     # Should at least not crash; whether edges fire depends on whether the
     # tweak above mapped to a containing symbol — best-effort assertion.
     assert isinstance(edges, list)
@@ -152,9 +146,7 @@ def test_synthesise_iac_edges_finds_consumer(tmp_path: Path, snapshot: InMemoryG
 
 def test_detect_config_keys(tmp_path: Path) -> None:
     (tmp_path / "x.py").write_text(
-        "import os\n"
-        "x = os.environ['DATABASE_URL']\n"
-        "y = feature_flag('new-checkout')\n"
+        "import os\nx = os.environ['DATABASE_URL']\ny = feature_flag('new-checkout')\n"
     )
     rows = detect_config_keys(tmp_path)
     keys = {r.key for r in rows}
@@ -176,9 +168,7 @@ def test_detect_drift(tmp_path: Path) -> None:
 
 
 def test_license_audit_python_only(tmp_path: Path) -> None:
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "x"\nlicense = {text = "MIT"}\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nlicense = {text = "MIT"}\n')
     out = license_audit(tmp_path)
     assert out["packages"]
     assert out["packages"][0]["license"] == "MIT"
@@ -278,8 +268,7 @@ def test_load_workspaces_yaml(tmp_path: Path) -> None:
     p = tmp_path / ".graphify_plus" / "workspaces.yaml"
     p.parent.mkdir(parents=True)
     p.write_text(
-        "workspaces:\n  - name: api\n    path: services/api\n"
-        "  - name: web\n    path: apps/web\n"
+        "workspaces:\n  - name: api\n    path: services/api\n  - name: web\n    path: apps/web\n"
     )
     rows = load_workspaces(tmp_path)
     assert {w.name for w in rows} == {"api", "web"}

@@ -11,12 +11,10 @@ from graphify_plus.daemon.diagnose import diagnose, format_diagnose
 from graphify_plus.daemon.handlers import session_digest as session_digest_handler
 from graphify_plus.daemon.indexes import InMemoryGraph
 from graphify_plus.daemon.session_digest import (
-    SessionDigest,
     format_digest,
     make_digest,
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
-
 
 # ---- diagnose ------------------------------------------------------------
 
@@ -49,9 +47,7 @@ def test_diagnose_format_renders(repo: Path) -> None:
 def test_diagnose_includes_telemetry_section(repo: Path) -> None:
     from graphify_plus.daemon.telemetry import append_event
 
-    append_event(
-        repo, "who_calls", elapsed_ms=1.2, tokens=20, n_results=1, trust="FRESH", ok=True
-    )
+    append_event(repo, "who_calls", elapsed_ms=1.2, tokens=20, n_results=1, trust="FRESH", ok=True)
     report = diagnose(repo)
     assert report["telemetry"]["events"] >= 1
 
@@ -99,7 +95,7 @@ def test_make_digest_includes_coverage_when_present(repo: Path) -> None:
         '<?xml version="1.0"?>\n<coverage><packages><package name="x">'
         '<classes><class filename="auth.py" name="x">'
         '<lines><line number="7" hits="1"/><line number="8" hits="0"/></lines>'
-        '</class></classes></package></packages></coverage>'
+        "</class></classes></package></packages></coverage>"
     )
     from graphify_plus.daemon.coverage import ingest_report
     from graphify_plus.runtime.store import Store, cache_path

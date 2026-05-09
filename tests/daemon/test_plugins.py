@@ -7,7 +7,6 @@ from click.testing import CliRunner
 from graphify_plus.daemon.plugins import (
     PluginRegistry,
     discover,
-    get_registry,
     reset_registry_for_tests,
 )
 from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
@@ -79,9 +78,7 @@ def test_discover_swallows_broken_plugin(monkeypatch) -> None:
         def __iter__(self):
             return iter([_Bad(), _Good()])
 
-    monkeypatch.setattr(
-        "graphify_plus.daemon.plugins.entry_points", lambda *a, **kw: _FakeEPs()
-    )
+    monkeypatch.setattr("graphify_plus.daemon.plugins.entry_points", lambda *a, **kw: _FakeEPs())
     reset_registry_for_tests(None)
     reg = discover()
     assert "good_op" in reg.handlers

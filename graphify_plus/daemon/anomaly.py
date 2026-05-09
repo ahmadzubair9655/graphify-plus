@@ -32,7 +32,7 @@ class HealthSnapshot:
     n_symbols: int
     n_files: int
     n_edges: int
-    god_node_count: int        # |pagerank_top|
+    god_node_count: int  # |pagerank_top|
     fresh_token: str
     coverage_pct: float | None = None
     rule_violations: int = 0
@@ -188,7 +188,9 @@ def ascii_sparkline(values: list[float], *, width: int = 40) -> str:
     lo = min(values)
     hi = max(values)
     span = hi - lo or 1.0
-    return "".join(chars[min(int((v - lo) / span * (len(chars) - 1)), len(chars) - 1)] for v in values)
+    return "".join(
+        chars[min(int((v - lo) / span * (len(chars) - 1)), len(chars) - 1)] for v in values
+    )
 
 
 def render_trend(rows: list[dict[str, Any]]) -> str:

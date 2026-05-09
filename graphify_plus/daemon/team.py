@@ -99,9 +99,7 @@ def push_annotation(
     """
     p = team_root / ANNOTATIONS_FILE
     p.parent.mkdir(parents=True, exist_ok=True)
-    fingerprint = hashlib.sha256(
-        f"{target}::{note}::{author}".encode()
-    ).hexdigest()[:16]
+    fingerprint = hashlib.sha256(f"{target}::{note}::{author}".encode()).hexdigest()[:16]
     # Idempotent check.
     if p.exists():
         for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -162,9 +160,7 @@ def detect_conflicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         notes = {r.get("note") for r in items}
         authors = {r.get("author") for r in items}
         if len(notes) > 1 and len(authors) > 1:
-            conflicts.append(
-                {"target": target, "items": items, "n_distinct_notes": len(notes)}
-            )
+            conflicts.append({"target": target, "items": items, "n_distinct_notes": len(notes)})
     return conflicts
 
 

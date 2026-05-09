@@ -176,8 +176,7 @@ def format_plan(plan: OnboardingPlan) -> str:
         lines.append("")
         for stop in plan.welltested_examples:
             lines.append(
-                f"- {stop.label} [{stop.kind}] "
-                f"`{stop.source_file}:{stop.line_number}` — {stop.why}"
+                f"- {stop.label} [{stop.kind}] `{stop.source_file}:{stop.line_number}` — {stop.why}"
             )
         lines.append("")
 
@@ -189,24 +188,22 @@ def format_plan(plan: OnboardingPlan) -> str:
             lines.append("")
             for stop in stops:
                 lines.append(
-                    f"- {stop.label} [{stop.kind}] "
-                    f"`{stop.source_file}:{stop.line_number}`"
+                    f"- {stop.label} [{stop.kind}] `{stop.source_file}:{stop.line_number}`"
                 )
             lines.append("")
 
     lines.append("## Next steps")
     lines.append("")
     lines.append(
-        "- `gp daemon plan \"<your task>\"` — graph-grounded edit plan for "
+        '- `gp daemon plan "<your task>"` — graph-grounded edit plan for '
         "any change you're about to make"
     )
     lines.append(
-        "- `gp daemon query find_by_concept --arg query=\"<your concept>\"` — "
+        '- `gp daemon query find_by_concept --arg query="<your concept>"` — '
         "find code by concept rather than name"
     )
     lines.append(
-        "- `gp daemon coverage untested` — find places where adding tests is "
-        "high-leverage"
+        "- `gp daemon coverage untested` — find places where adding tests is high-leverage"
     )
     return "\n".join(lines)
 

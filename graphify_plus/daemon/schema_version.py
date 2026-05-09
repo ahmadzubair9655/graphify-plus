@@ -37,10 +37,14 @@ _MIGRATIONS: dict[tuple[int, int], Callable[[dict[str, Any]], dict[str, Any]]] =
 
 def register_migration(
     from_v: int, to_v: int
-) -> Callable[[Callable[[dict[str, Any]], dict[str, Any]]], Callable[[dict[str, Any]], dict[str, Any]]]:
+) -> Callable[
+    [Callable[[dict[str, Any]], dict[str, Any]]], Callable[[dict[str, Any]], dict[str, Any]]
+]:
     """Decorator. Each migration is a pure dict→dict function."""
 
-    def _decorator(fn: Callable[[dict[str, Any]], dict[str, Any]]) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    def _decorator(
+        fn: Callable[[dict[str, Any]], dict[str, Any]],
+    ) -> Callable[[dict[str, Any]], dict[str, Any]]:
         _MIGRATIONS[(from_v, to_v)] = fn
         return fn
 
@@ -62,9 +66,7 @@ def check(payload: dict[str, Any]) -> int:
     """
     v = int(payload.get("_schema_version", 0))
     if v > DAEMON_SCHEMA_VERSION:
-        raise SchemaTooNew(
-            f"artifact schema v{v} is newer than tool's v{DAEMON_SCHEMA_VERSION}"
-        )
+        raise SchemaTooNew(f"artifact schema v{v} is newer than tool's v{DAEMON_SCHEMA_VERSION}")
     if v < DAEMON_SCHEMA_VERSION - COMPATIBILITY_WINDOW:
         raise SchemaTooOld(
             f"artifact schema v{v} is older than the {COMPATIBILITY_WINDOW}-version support window"

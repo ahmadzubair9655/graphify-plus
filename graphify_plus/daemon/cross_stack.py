@@ -80,7 +80,9 @@ CREATE INDEX IF NOT EXISTS idx_cross_kind ON cross_edges(kind);
 # Backend: server-side route definitions. Each pattern captures (verb, url).
 BACKEND_PATTERNS = [
     # Flask / FastAPI / Starlette / Quart — verb-specific
-    re.compile(r"@\w+\.(get|post|put|delete|patch|head|options)\(\s*[\"']([^\"']+)[\"']", re.IGNORECASE),
+    re.compile(
+        r"@\w+\.(get|post|put|delete|patch|head|options)\(\s*[\"']([^\"']+)[\"']", re.IGNORECASE
+    ),
     # Flask @app.route('/x', methods=['POST'])
     re.compile(r"@\w+\.route\(\s*[\"']([^\"']+)[\"']", re.IGNORECASE),
     # Express / Koa / Fastify
@@ -132,7 +134,9 @@ def _normalise_url(url: str) -> str:
     return u
 
 
-def detect_http_endpoints(symbols: list[Symbol], repo: Path) -> tuple[list[HTTPEndpoint], list[HTTPEndpoint]]:
+def detect_http_endpoints(
+    symbols: list[Symbol], repo: Path
+) -> tuple[list[HTTPEndpoint], list[HTTPEndpoint]]:
     """Walk symbol-bearing source files, return (backends, callers)."""
     backends: list[HTTPEndpoint] = []
     callers: list[HTTPEndpoint] = []
@@ -191,6 +195,7 @@ def _iter_backend(text: str) -> list[dict[str, Any]]:
                 method = groups[0].upper() if len(groups) >= 2 else "ANY"
                 url = groups[1] if len(groups) >= 2 else groups[0]
                 out.append({"method": method, "url": url, "start": m.start()})
+
     # Synthetic .start() attribute so we can keep using m.start() in the caller.
     class _M:
         def __init__(self, d: dict[str, Any]):
@@ -319,12 +324,8 @@ CREATE_TABLE_RE = re.compile(
     r"CREATE\s+(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?[\"`']?(\w+)[\"`']?",
     re.IGNORECASE,
 )
-TABLENAME_PYATTR_RE = re.compile(
-    r"__tablename__\s*=\s*[\"']([^\"']+)[\"']"
-)
-DJANGO_DB_TABLE_RE = re.compile(
-    r"db_table\s*=\s*[\"']([^\"']+)[\"']"
-)
+TABLENAME_PYATTR_RE = re.compile(r"__tablename__\s*=\s*[\"']([^\"']+)[\"']")
+DJANGO_DB_TABLE_RE = re.compile(r"db_table\s*=\s*[\"']([^\"']+)[\"']")
 
 
 @dataclass
@@ -452,9 +453,7 @@ def load_cross_edges(store: Store, kind: str | None = None) -> list[dict[str, An
             "SELECT src, dst, kind, detail FROM cross_edges WHERE kind = ?", (kind,)
         ).fetchall()
     else:
-        rows = store.conn.execute(
-            "SELECT src, dst, kind, detail FROM cross_edges"
-        ).fetchall()
+        rows = store.conn.execute("SELECT src, dst, kind, detail FROM cross_edges").fetchall()
     out: list[dict[str, Any]] = []
     for src, dst, k, detail in rows:
         try:

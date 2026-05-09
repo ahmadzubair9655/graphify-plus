@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -34,7 +34,7 @@ class Proposal:
     rationale: str
     edit_path: str
     edit_lines: tuple[int, int] = (0, 0)
-    state: str = "pending"      # pending | accepted | rejected
+    state: str = "pending"  # pending | accepted | rejected
     proposed_at: str = ""
     decided_at: str = ""
 
