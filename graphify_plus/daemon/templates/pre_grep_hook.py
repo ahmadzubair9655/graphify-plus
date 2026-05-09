@@ -49,14 +49,34 @@ def main() -> int:
         return 0
 
     pattern = (event.get("tool_input") or {}).get("pattern") or ""
-    if not pattern or not BAREWORD.match(pattern):
+    if not pattern:
         return 0
 
     cwd = Path(event.get("cwd") or ".").resolve()
-    suggestion = _suggest(cwd, pattern)
+    is_bareword = bool(BAREWORD.match(pattern))
+
+    suggestion: str | None = None
+    daemon_running = False
+    fresh = False
+    matched = 0
+    if is_bareword:
+        suggestion, daemon_running, fresh, matched = _suggest_with_diagnostics(cwd, pattern)
+
+    # Adoption telemetry: record EVERY grep we see (bareword or not),
+    # regardless of whether we nudge. The denominator matters as much
+    # as the numerator. Layer-4.3 / review-guide-recommended.
+    _record_event(
+        cwd,
+        pattern=pattern,
+        nudged=suggestion is not None,
+        bareword=is_bareword,
+        daemon_running=daemon_running,
+        fresh=fresh,
+        matched_node_count=matched,
+    )
+
     if suggestion is None:
         return 0
-
     out = {
         "decision": "approve",
         "reason": suggestion,
@@ -66,36 +86,67 @@ def main() -> int:
     return 0
 
 
-def _suggest(repo: Path, name: str) -> str | None:
-    """Returns a one-line hint or None. Never raises."""
+def _record_event(
+    repo: Path,
+    *,
+    pattern: str,
+    nudged: bool,
+    bareword: bool,
+    daemon_running: bool,
+    fresh: bool,
+    matched_node_count: int,
+) -> None:
+    try:
+        from graphify_plus.daemon.adoption import record_grep_event
+
+        record_grep_event(
+            repo,
+            pattern=pattern,
+            nudged=nudged,
+            bareword=bareword,
+            daemon_running=daemon_running,
+            fresh=fresh,
+            matched_node_count=matched_node_count,
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _suggest_with_diagnostics(repo: Path, name: str) -> tuple[str | None, bool, bool, int]:
+    """Returns ``(suggestion, daemon_running, fresh, matched_count)``."""
     try:
         from graphify_plus.daemon.client import DaemonClient
     except Exception:  # noqa: BLE001
-        return None
+        return None, False, False, 0
     client = DaemonClient(repo, timeout_s=0.5)
     if not client.is_running():
-        return None
+        return None, False, False, 0
     try:
         resp = client.call("find_by_name", {"label": name, "budget_tokens": 600})
     except Exception:  # noqa: BLE001
-        return None
-    fresh = resp.get("freshness", {})
-    if fresh.get("trust") not in ("FRESH", "LIVE_AHEAD"):
-        # Stale graphs lose the right to advise.
-        return None
+        return None, True, False, 0
+    fresh_dict = resp.get("freshness", {})
+    is_fresh = fresh_dict.get("trust") in ("FRESH", "LIVE_AHEAD")
     rows = resp.get("results", [])
-    if not rows:
-        return None
+    if not rows or not is_fresh:
+        return None, True, is_fresh, len(rows)
     top = rows[0]
     label = top.get("label") or name
     file_line = f"{top.get('source_file', '?')}:{top.get('line_number', 0)}"
     n = len(rows)
-    return (
+    suggestion = (
         f"[graphify-plus hook] graph has {n} symbol(s) matching {name!r} "
         f"(top: {label} at {file_line}). "
         f"Try `gp_who_calls` / `gp_whats_in` / `gp_find_by_name` for "
         f"structural follow-ups — usually fewer round-trips than grep."
     )
+    return suggestion, True, True, n
+
+
+# Backwards-compatible wrapper kept for tests + external callers.
+def _suggest(repo: Path, name: str) -> str | None:
+    suggestion, _running, _fresh, _matched = _suggest_with_diagnostics(repo, name)
+    return suggestion
 
 
 if __name__ == "__main__":

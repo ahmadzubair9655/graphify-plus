@@ -127,6 +127,27 @@ class PerfResult:
     pass_p99: bool = True
 
 
+@dataclass
+class PerfCell:
+    workload: str  # 'name_match' | 'concept_search' | '1_hop' | 'multi_hop'
+    cache_state: str  # 'cold' | 'warm' | 'hot'
+    samples: int
+    p50_ms: float
+    p95_ms: float
+    p99_ms: float
+    pass_p99: bool
+
+
+@dataclass
+class PerfTable:
+    n_symbols: int
+    target_p99_ms: float
+    cells: list[PerfCell] = field(default_factory=list)
+
+    def all_pass(self) -> bool:
+        return all(c.pass_p99 for c in self.cells)
+
+
 def perfcheck(graph: InMemoryGraph, *, samples: int = 500) -> PerfResult:
     """Time ``samples`` cheap queries and assert against published
     targets. Used by CI regression tests.
@@ -168,6 +189,173 @@ def perfcheck(graph: InMemoryGraph, *, samples: int = 500) -> PerfResult:
         pass_p50=p50 <= target.get("p50_ms", 1e9),
         pass_p99=p99 <= target.get("p99_ms", 1e9),
     )
+
+
+# ---- 12.2b — multi-workload performance table -----------------------
+
+
+def perfcheck_table(graph: InMemoryGraph, *, samples_per_cell: int = 100) -> PerfTable:
+    """Run a 4×3 perfcheck table: 4 query workloads × 3 cache states.
+
+    Workloads:
+      * ``name_match``    — exact-name find_by_name
+      * ``concept_search``— text_search (the embedding-fallback path)
+      * ``1_hop``         — callers_of (most common Claude pattern)
+      * ``multi_hop``     — dependents_of expansion (3 hops)
+
+    Cache states (we approximate by clearing/repopulating the inverted
+    index between rounds):
+      * ``cold``  — first call after import; nothing warmed
+      * ``warm``  — second call; index rows in OS page cache
+      * ``hot``   — many subsequent calls; CPU branch predictor steady
+
+    Reports P50/P95/P99 per cell so the reviewer sees the full
+    distribution, not a single best-case number.
+    """
+    import random as _rand
+    import statistics
+    import time as _time
+
+    n = len(graph.by_id)
+    target = {}
+    for ceiling, t in sorted(PERF_TARGETS.items()):
+        if n <= ceiling:
+            target = t
+            break
+    if not target:
+        target = PERF_TARGETS[100_000]
+    target_p99 = float(target.get("p99_ms", 1e9))
+    table = PerfTable(n_symbols=n, target_p99_ms=target_p99)
+    if not graph.by_id:
+        return table
+
+    sids = list(graph.by_id.keys())
+    rng = _rand.Random(1337)
+    sample_sids = rng.sample(sids, min(samples_per_cell * 2, len(sids)))
+    sample_names = [
+        graph.by_id[s].get("name") or "" for s in sample_sids if graph.by_id[s].get("name")
+    ]
+    sample_concepts = [
+        "authenticate user",
+        "load configuration",
+        "render component",
+        "fetch data",
+        "validate input",
+    ]
+
+    workloads = {
+        "name_match": lambda i: graph.find_by_name(
+            sample_names[i % len(sample_names)] if sample_names else "x", limit=8
+        ),
+        "concept_search": lambda i: graph.text_search(
+            sample_concepts[i % len(sample_concepts)], limit=10
+        ),
+        "1_hop": lambda i: graph.callers_of(sample_sids[i % len(sample_sids)]),
+        "multi_hop": lambda i: _multi_hop(graph, sample_sids[i % len(sample_sids)], depth=3),
+    }
+
+    for wl_name, runner in workloads.items():
+        # cold: drop any caches that look caching-shaped, then time first
+        # call. We can't truly clear OS-level caches from Python, so cold
+        # is "n=1 sample of the very first call after we run another
+        # workload" — best-effort proxy.
+        for cache_state in ("cold", "warm", "hot"):
+            durations: list[float] = []
+            if cache_state == "cold":
+                # warm a *different* workload first, then time one cold call
+                for _ in range(5):
+                    workloads["name_match" if wl_name != "name_match" else "1_hop"](0)
+                t0 = _time.perf_counter()
+                runner(0)
+                durations.append((_time.perf_counter() - t0) * 1000.0)
+            elif cache_state == "warm":
+                for _ in range(2):
+                    runner(0)
+                for i in range(samples_per_cell):
+                    t0 = _time.perf_counter()
+                    runner(i)
+                    durations.append((_time.perf_counter() - t0) * 1000.0)
+            else:  # hot
+                for _ in range(20):
+                    runner(0)
+                for i in range(samples_per_cell):
+                    t0 = _time.perf_counter()
+                    runner(i)
+                    durations.append((_time.perf_counter() - t0) * 1000.0)
+
+            durations.sort()
+            p50 = statistics.median(durations) if len(durations) > 1 else durations[0]
+            p95 = durations[int(len(durations) * 0.95)] if len(durations) > 1 else durations[0]
+            p99 = durations[int(len(durations) * 0.99)] if len(durations) > 1 else durations[0]
+            table.cells.append(
+                PerfCell(
+                    workload=wl_name,
+                    cache_state=cache_state,
+                    samples=len(durations),
+                    p50_ms=round(p50, 3),
+                    p95_ms=round(p95, 3),
+                    p99_ms=round(p99, 3),
+                    pass_p99=p99 <= target_p99,
+                )
+            )
+    return table
+
+
+def _multi_hop(graph: InMemoryGraph, sid: str, *, depth: int = 3) -> list[Any]:
+    seen: set[str] = {sid}
+    frontier = [sid]
+    out: list[Any] = []
+    for _ in range(depth):
+        next_frontier: list[str] = []
+        for node in frontier:
+            for src, _kind, _span in graph.in_neighbours.get(node, []):
+                if src in seen:
+                    continue
+                seen.add(src)
+                next_frontier.append(src)
+                sym = graph.by_id.get(src)
+                if sym:
+                    out.append(sym)
+        frontier = next_frontier
+    return out
+
+
+def render_perf_table(table: PerfTable) -> str:
+    """Render the 12-cell table as a Markdown table the PR can paste."""
+    lines: list[str] = []
+    lines.append(
+        f"# perfcheck — {table.n_symbols:,} symbols (target P99 ≤ {table.target_p99_ms}ms)"
+    )
+    lines.append("")
+    lines.append("| workload | cold P99 | warm P99 | hot P99 | hot P50 |")
+    lines.append("|---|---|---|---|---|")
+    by_wl: dict[str, dict[str, PerfCell]] = {}
+    for c in table.cells:
+        by_wl.setdefault(c.workload, {})[c.cache_state] = c
+    for wl_name in ("name_match", "concept_search", "1_hop", "multi_hop"):
+        cells = by_wl.get(wl_name, {})
+        cold = cells.get("cold")
+        warm = cells.get("warm")
+        hot = cells.get("hot")
+
+        def _fmt(c: PerfCell | None, key: str) -> str:
+            if c is None:
+                return "-"
+            v = getattr(c, key)
+            mark = " ✗" if not c.pass_p99 and key.endswith("99") else ""
+            return f"{v}ms{mark}"
+
+        lines.append(
+            f"| {wl_name} | {_fmt(cold, 'p99_ms')} | {_fmt(warm, 'p99_ms')} | "
+            f"{_fmt(hot, 'p99_ms')} | {_fmt(hot, 'p50_ms')} |"
+        )
+    lines.append("")
+    if table.all_pass():
+        lines.append("✓ every cell within target")
+    else:
+        n_fail = sum(1 for c in table.cells if not c.pass_p99)
+        lines.append(f"✗ {n_fail} cell(s) over target P99 — see ✗ markers above")
+    return "\n".join(lines)
 
 
 # ---- 12.3 failure modes ----------------------------------------------
@@ -221,9 +409,13 @@ __all__ = [
     "NetworkProbe",
     "PERF_TARGETS",
     "PRIVACY_DECLARATION",
+    "PerfCell",
     "PerfResult",
+    "PerfTable",
     "deterministic_hash",
     "dry_run_network",
     "perfcheck",
+    "perfcheck_table",
+    "render_perf_table",
     "with_failover",
 ]

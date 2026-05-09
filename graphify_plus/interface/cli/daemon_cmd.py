@@ -1246,6 +1246,36 @@ def privacy_cmd(repo: Path, dry_run: bool, as_json: bool) -> None:
     click.echo(PRIVACY_DECLARATION)
 
 
+@daemon_cmd.command("adoption")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option(
+    "--window-hours",
+    default=24,
+    type=int,
+    help="Window in hours to aggregate over (default: 24).",
+)
+@click.option("--json", "as_json", is_flag=True)
+def adoption_cmd(repo: Path, window_hours: int, as_json: bool) -> None:
+    """Adoption telemetry: graph-vs-grep call ratio + hook funnel.
+
+    The single metric that says whether the master-plan rewrite worked:
+    once Claude has both grep and graph tools available, what fraction
+    of structural queries hit the graph? Reads telemetry.jsonl (graph
+    numerator) and grep-events.jsonl (grep denominator from the hook).
+    """
+    from ...daemon.adoption import adoption_report, render_report
+
+    rep = adoption_report(repo.resolve(), window_hours=window_hours)
+    if as_json:
+        click.echo(json.dumps(rep.to_dict(), indent=2))
+        return
+    click.echo(render_report(rep))
+
+
 @daemon_cmd.command("perfcheck")
 @click.option(
     "--repo",
@@ -1253,21 +1283,63 @@ def privacy_cmd(repo: Path, dry_run: bool, as_json: bool) -> None:
     default=Path("."),
 )
 @click.option("--samples", default=500, type=int)
+@click.option(
+    "--workload",
+    default="single",
+    type=click.Choice(["single", "all"]),
+    help="single = legacy mixed-workload test; all = 4×3 cell breakdown.",
+)
+@click.option("--report", is_flag=True, help="Markdown table output (with --workload all).")
 @click.option("--json", "as_json", is_flag=True)
-def perfcheck_cmd(repo: Path, samples: int, as_json: bool) -> None:
-    """Performance regression check (Layer 12.2)."""
+def perfcheck_cmd(
+    repo: Path, samples: int, workload: str, report: bool, as_json: bool
+) -> None:
+    """Performance regression check (Layer 12.2).
+
+    With ``--workload all`` runs the 4-workload × 3-cache-state matrix
+    so reviewers see the full distribution, not a single best-case
+    number.
+    """
     from ...daemon.indexes import InMemoryGraph
-    from ...daemon.ops_rigor import perfcheck
+    from ...daemon.ops_rigor import perfcheck, perfcheck_table, render_perf_table
     from ...runtime.store import Store, cache_path as _cp
 
     repo = repo.resolve()
     if not _cp(repo).exists():
-        raise click.ClickException(f"no graph cache; run `gp init` first")
+        raise click.ClickException("no graph cache; run `gp init` first")
     store = Store(_cp(repo))
     try:
         snap = InMemoryGraph.from_store(store, repo)
     finally:
         store.close()
+
+    if workload == "all":
+        table = perfcheck_table(snap, samples_per_cell=max(samples // 12, 25))
+        if as_json:
+            click.echo(
+                json.dumps(
+                    {
+                        "n_symbols": table.n_symbols,
+                        "target_p99_ms": table.target_p99_ms,
+                        "all_pass": table.all_pass(),
+                        "cells": [c.__dict__ for c in table.cells],
+                    },
+                    indent=2,
+                )
+            )
+        elif report:
+            click.echo(render_perf_table(table))
+        else:
+            for c in table.cells:
+                mark = "✓" if c.pass_p99 else "✗"
+                click.echo(
+                    f"  {mark} {c.workload:<14} {c.cache_state:<5} "
+                    f"p50={c.p50_ms}ms p95={c.p95_ms}ms p99={c.p99_ms}ms"
+                )
+        if not table.all_pass():
+            sys.exit(1)
+        return
+
     res = perfcheck(snap, samples=samples)
     body = {
         "n_symbols": res.n_symbols,
