@@ -335,6 +335,26 @@ def tool_plan(args: dict[str, Any]) -> dict[str, Any]:
     return _run_intent("plan", args)
 
 
+def tool_whats_untested(args: dict[str, Any]) -> dict[str, Any]:
+    """Symbols at or below max_pct test coverage in the requested scope."""
+    return _run_intent("whats_untested", args)
+
+
+def tool_coverage_for(args: dict[str, Any]) -> dict[str, Any]:
+    """Coverage stats for a single symbol."""
+    return _run_intent("coverage_for", args)
+
+
+def tool_coverage_summary(args: dict[str, Any]) -> dict[str, Any]:
+    """Repo-wide test-coverage roll-up + worst-N files."""
+    return _run_intent("coverage_summary", args)
+
+
+def tool_rules_check(args: dict[str, Any]) -> dict[str, Any]:
+    """Run architectural-drift rules from .graphify_plus/rules.yaml."""
+    return _run_intent("rules_check", args)
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -356,6 +376,12 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_find_by_concept": tool_find_by_concept,
     "gp_whats_central": tool_whats_central,
     "gp_plan": tool_plan,
+    # Sprint 8 — test-coverage overlay:
+    "gp_whats_untested": tool_whats_untested,
+    "gp_coverage_for": tool_coverage_for,
+    "gp_coverage_summary": tool_coverage_summary,
+    # Sprint 9.4 — architectural drift rules:
+    "gp_rules_check": tool_rules_check,
 }
 
 
@@ -447,4 +473,8 @@ __all__ = [
     "tool_find_by_concept",
     "tool_whats_central",
     "tool_plan",
+    "tool_whats_untested",
+    "tool_coverage_for",
+    "tool_coverage_summary",
+    "tool_rules_check",
 ]

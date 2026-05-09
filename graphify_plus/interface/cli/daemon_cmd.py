@@ -167,6 +167,171 @@ def refresh_cmd(repo: Path) -> None:
     )
 
 
+@daemon_cmd.group("coverage")
+def coverage_group() -> None:
+    """Test-coverage overlay (`gp daemon coverage ingest|summary|untested`)."""
+
+
+@coverage_group.command("ingest")
+@click.argument("report", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def coverage_ingest_cmd(report: Path, repo: Path) -> None:
+    """Parse a coverage report and attribute hits to symbols.
+
+    Supports Cobertura XML (``coverage xml`` / ``pytest --cov-report=xml``)
+    and Istanbul JSON (``jest --coverage`` / ``vitest --coverage``).
+    """
+    from ...daemon.coverage import ingest_report
+    from ...runtime.store import Store, cache_path as _cache_path
+
+    repo = repo.resolve()
+    if not _cache_path(repo).exists():
+        raise click.ClickException(
+            f"no graph cache at {_cache_path(repo)} — run `gp init --repo {repo}` first"
+        )
+    store = Store(_cache_path(repo))
+    try:
+        summary = ingest_report(store, repo, report)
+    finally:
+        store.close()
+    click.echo(
+        f"ingested {report.name} ({summary['format']}): "
+        f"{summary['files']} files, "
+        f"{summary['symbols_attributed']} symbols, "
+        f"{summary['report_covered_lines']}/{summary['report_total_lines']} lines covered"
+    )
+    # Refresh the daemon if it's running so subsequent queries see new data.
+    client = DaemonClient(repo)
+    if client.is_running():
+        client.call("refresh")
+        click.echo("daemon refreshed")
+
+
+@coverage_group.command("summary")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--top-k", default=10, type=int, help="Number of worst-covered files to show.")
+@click.option("--json", "as_json", is_flag=True)
+def coverage_summary_cmd(repo: Path, top_k: int, as_json: bool) -> None:
+    """Repo-wide coverage stats."""
+    repo = repo.resolve()
+    args: dict[str, Any] = {"top_k": top_k}
+    payload = _route_intent(repo, "coverage_summary", args)
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    extra = payload.get("extra", {})
+    if as_json:
+        click.echo(json.dumps(extra, indent=2))
+        return
+    if "reason" in extra:
+        click.echo(extra["reason"])
+        return
+    click.echo(
+        f"overall: {extra['overall_pct']}% "
+        f"({extra['lines_covered']}/{extra['lines_total']} lines, "
+        f"{extra['files_with_signal']} files)"
+    )
+    click.echo("")
+    click.echo("worst-covered files:")
+    for w in extra.get("worst_files", []):
+        click.echo(f"  {w['pct']:>5.1f}%  {w['path']}  ({w['covered']}/{w['total']})")
+
+
+@coverage_group.command("untested")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--path", default="", help="File or directory to scope to.")
+@click.option("--max-pct", default=10.0, type=float, help="Max coverage % to include.")
+@click.option("--json", "as_json", is_flag=True)
+def coverage_untested_cmd(repo: Path, path: str, max_pct: float, as_json: bool) -> None:
+    """List symbols at or below MAX_PCT coverage."""
+    repo = repo.resolve()
+    payload = _route_intent(
+        repo, "whats_untested", {"path": path, "max_pct": max_pct, "budget_tokens": 4000}
+    )
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    rows = payload.get("results", [])
+    if not rows:
+        extra = payload.get("extra", {})
+        click.echo(extra.get("reason", "no untested symbols below threshold"))
+        return
+    for row in rows:
+        click.echo(
+            f"{row.get('coverage_pct', 0.0):>5.1f}%  "
+            f"{row.get('label', '?')}  [{row.get('kind', '?')}]  "
+            f"{row.get('source_file', '?')}:{row.get('line_number', 0)}  "
+            f"({row.get('coverage_lines', '0/0')})"
+        )
+
+
+@daemon_cmd.group("rules")
+def rules_group() -> None:
+    """Architectural-drift rules (`gp daemon rules check`)."""
+
+
+@rules_group.command("check")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+@click.option(
+    "--fail-on-error",
+    is_flag=True,
+    help="Exit non-zero when any error-severity violation is found.",
+)
+def rules_check_cmd(repo: Path, as_json: bool, fail_on_error: bool) -> None:
+    """Evaluate ``.graphify_plus/rules.yaml`` against the live graph."""
+    repo = repo.resolve()
+    payload = _route_intent(repo, "rules_check", {"budget_tokens": 4000})
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    extra = payload.get("extra", {})
+    rows = payload.get("results", [])
+    if as_json:
+        click.echo(json.dumps({"extra": extra, "violations": rows}, indent=2))
+        if fail_on_error and extra.get("errors", 0) > 0:
+            sys.exit(1)
+        return
+    if extra.get("rule_count", 0) == 0:
+        click.echo(extra.get("reason", "no ruleset configured"))
+        return
+    grade = extra.get("grade", "?")
+    n_err = extra.get("errors", 0)
+    n_warn = extra.get("warnings", 0)
+    click.echo(
+        f"grade {grade}  "
+        f"errors={n_err}  warnings={n_warn}  "
+        f"rules={extra.get('rule_count', 0)}"
+    )
+    for row in rows:
+        sev = row.get("severity", "?")
+        rid = row.get("rule_id", "?")
+        msg = row.get("message", "")
+        loc = ""
+        if row.get("src"):
+            src = row["src"]
+            loc = f"  ({src.get('source_file', '')}:{src.get('line_number', 0)})"
+        click.echo(f"  [{sev}] {rid}: {msg}{loc}")
+    if fail_on_error and n_err > 0:
+        sys.exit(1)
+
+
 @daemon_cmd.command("plan")
 @click.argument("task")
 @click.option(
@@ -418,6 +583,47 @@ def _parse_kv(items: tuple[str, ...]) -> dict[str, Any]:
             continue
         out[k] = v
     return out
+
+
+def _route_intent(repo: Path, op: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Run an intent op via the daemon when available, else in-process.
+
+    Used by CLI commands that don't strictly need a running daemon. Returns
+    the *handler payload* shape — ``{results, more_available, extra}`` —
+    not the full server envelope.
+    """
+    client = DaemonClient(repo)
+    if client.is_running():
+        try:
+            resp = client.call(op, args)
+            return {
+                "results": resp.get("results", []),
+                "more_available": resp.get("more_available", 0),
+                "extra": resp.get("extra", {}),
+            }
+        except DaemonError as exc:
+            return {"error": {"code": exc.code, "message": str(exc)}}
+
+    from ...daemon.handlers import HANDLERS as _HANDLERS
+    from ...daemon.indexes import InMemoryGraph
+    from ...runtime.store import Store, cache_path as _cache_path
+
+    handler = _HANDLERS.get(op)
+    if handler is None:
+        return {"error": {"code": "UNKNOWN_OP", "message": f"unknown op: {op}"}}
+    if not _cache_path(repo).exists():
+        return {
+            "error": {
+                "code": "NO_GRAPH",
+                "message": f"no graph cache — run `gp init --repo {repo}` first",
+            }
+        }
+    store = Store(_cache_path(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    return handler(snap, args)
 
 
 def _read_pid(repo: Path) -> int | None:

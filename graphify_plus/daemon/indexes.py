@@ -99,6 +99,9 @@ class InMemoryGraph:
     # (e.g. ``self.login``, ``s.login``). Indexed by lowercase short-name
     # so ``who_calls(AuthService.login)`` can roll up placeholder traffic.
     placeholders_by_short_name: dict[str, list[str]] = field(default_factory=dict)
+    # Symbol-level coverage attribution (Sprint 8). Empty when no
+    # coverage has been ingested via ``gp daemon coverage ingest``.
+    coverage: dict[str, dict[str, Any]] = field(default_factory=dict)
     repo_root: Path = field(default_factory=lambda: Path("."))
     built_at: float = 0.0
     freshness_token: str = ""
@@ -123,6 +126,14 @@ class InMemoryGraph:
             except Exception:  # noqa: BLE001
                 comm = {}
         snap = cls._build_indexes(symbols, edges, G, comm, repo_root)
+        # Coverage overlay — best-effort: missing table is not an error.
+        try:
+            from .coverage import load_coverage
+
+            snap.coverage = load_coverage(store)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("coverage overlay unavailable: %s", exc)
+            snap.coverage = {}
         snap.stats = IndexBuildStats(
             elapsed_ms=(time.perf_counter() - t0) * 1000.0,
             symbols=len(symbols),

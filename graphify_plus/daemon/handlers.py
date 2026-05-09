@@ -28,6 +28,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from pathlib import Path
+
 from ..core.adapters import Symbol
 from .indexes import InMemoryGraph
 from .receipts import estimate_tokens
@@ -64,7 +66,13 @@ def _label_for(s: Symbol) -> str:
     return s.get("qualified_name") or s.get("name") or s.get("id", "")
 
 
-def _format_node(s: Symbol, *, confidence: float = 1.0, **extras: Any) -> dict[str, Any]:
+def _format_node(
+    s: Symbol,
+    *,
+    confidence: float = 1.0,
+    coverage: dict[str, Any] | None = None,
+    **extras: Any,
+) -> dict[str, Any]:
     out: dict[str, Any] = {
         "node_id": s.get("id", ""),
         "label": _label_for(s),
@@ -74,6 +82,13 @@ def _format_node(s: Symbol, *, confidence: float = 1.0, **extras: Any) -> dict[s
         "confidence": confidence,
         "kind": s.get("kind") or "",
     }
+    if coverage:
+        # Round to one decimal to keep wire size small; "0.0%" is a
+        # meaningful signal here, so don't drop zeros.
+        out["coverage_pct"] = round(coverage.get("pct", 0.0) * 100, 1)
+        out["coverage_lines"] = (
+            f"{coverage.get('lines_covered', 0)}/{coverage.get('lines_total', 0)}"
+        )
     out.update(extras)
     return out
 
@@ -146,11 +161,147 @@ def whats_in(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
 
     symbols.sort(key=sort_key)
     rows = [
-        _format_node(s, pagerank=round(pr.get(s.get("id", ""), 0.0), 6))
+        _format_node(
+            s,
+            pagerank=round(pr.get(s.get("id", ""), 0.0), 6),
+            coverage=graph.coverage.get(s.get("id", "")),
+        )
         for s in symbols
     ]
     kept, more = _budget_clip(rows, budget)
     return {"results": kept, "more_available": more}
+
+
+def whats_untested(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """List symbols with low or zero coverage in a file/directory.
+
+    Coverage is the single biggest "make Claude required" feature in the
+    master plan (Layer 7.1). Without test execution at query time, this
+    answers "which functions have no test signal?" in milliseconds.
+
+    Args:
+        path: file or directory prefix (default: whole repo)
+        max_pct: maximum coverage % to include (default 10 — "essentially untested")
+        budget_tokens: response budget
+    """
+    path = (args.get("path") or "").strip()
+    max_pct = float(args.get("max_pct", 10.0))
+    budget = int(args.get("budget_tokens") or DEFAULT_BUDGET_TOKENS)
+
+    if not graph.coverage:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {
+                "reason": (
+                    "no coverage ingested — run "
+                    "`pytest --cov --cov-report=xml` then "
+                    "`gp daemon coverage ingest coverage.xml`"
+                )
+            },
+        }
+
+    # Filter to the requested scope.
+    if not path or path in (".", "./", ""):
+        candidate_ids = list(graph.by_id.keys())
+    elif path in graph.by_path:
+        candidate_ids = list(graph.by_path[path])
+    else:
+        prefix = path.rstrip("/") + "/"
+        candidate_ids = []
+        for p, ids in graph.by_path.items():
+            if p == path or p.startswith(prefix):
+                candidate_ids.extend(ids)
+
+    rows: list[dict[str, Any]] = []
+    for sid in candidate_ids:
+        cov = graph.coverage.get(sid)
+        if cov is None:
+            continue  # no signal — different from "0% covered"
+        pct = float(cov.get("pct", 0.0)) * 100
+        if pct > max_pct:
+            continue
+        sym = graph.by_id.get(sid)
+        if not sym:
+            continue
+        rows.append(
+            _format_node(
+                sym,
+                coverage=cov,
+                confidence=1.0 - (pct / 100.0),
+            )
+        )
+    rows.sort(key=lambda r: (r.get("coverage_pct", 0.0), r["source_file"], r["line_number"]))
+    kept, more = _budget_clip(rows, budget)
+    return {"results": kept, "more_available": more, "extra": {"max_pct": max_pct}}
+
+
+def coverage_for(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Coverage stats for a single symbol — {pct, lines_covered, lines_total}."""
+    sid, ambig = _resolve_symbol(graph, args)
+    if ambig is not None:
+        return ambig
+    sym = graph.by_id.get(sid)
+    if sym is None:
+        return {"results": [], "more_available": 0, "extra": {}}
+    cov = graph.coverage.get(sid)
+    if cov is None:
+        return {
+            "results": [_format_node(sym, coverage=None)],
+            "more_available": 0,
+            "extra": {"reason": "no coverage data for this symbol"},
+        }
+    return {
+        "results": [_format_node(sym, coverage=cov)],
+        "more_available": 0,
+        "extra": {"coverage": cov},
+    }
+
+
+def coverage_summary(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Repo-wide coverage roll-up: overall pct + worst-N files."""
+    if not graph.coverage:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {"reason": "no coverage ingested"},
+        }
+    total_lc = 0
+    total_lt = 0
+    by_file: dict[str, list[int]] = {}  # path → [covered, total]
+    for sid, cov in graph.coverage.items():
+        sym = graph.by_id.get(sid)
+        if not sym:
+            continue
+        path = sym.get("path") or ""
+        bucket = by_file.setdefault(path, [0, 0])
+        bucket[0] += int(cov.get("lines_covered", 0))
+        bucket[1] += int(cov.get("lines_total", 0))
+        total_lc += int(cov.get("lines_covered", 0))
+        total_lt += int(cov.get("lines_total", 0))
+    overall_pct = (total_lc / total_lt * 100.0) if total_lt else 0.0
+    worst = sorted(
+        (
+            (path, lc, lt, (lc / lt * 100.0) if lt else 0.0)
+            for path, (lc, lt) in by_file.items()
+            if lt > 0
+        ),
+        key=lambda r: r[3],
+    )[: int(args.get("top_k", 10))]
+    return {
+        "results": [],
+        "more_available": 0,
+        "extra": {
+            "overall_pct": round(overall_pct, 1),
+            "lines_covered": total_lc,
+            "lines_total": total_lt,
+            "files_with_signal": len(by_file),
+            "worst_files": [
+                {"path": p, "pct": round(pct, 1), "covered": lc, "total": lt}
+                for p, lc, lt, pct in worst
+            ],
+        },
+    }
 
 
 def who_calls(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
@@ -317,6 +468,112 @@ def plan(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     return {"results": [], "more_available": 0, "extra": {"plan": p.to_dict()}}
 
 
+def rules_check(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Run the architectural-drift rules from ``.graphify_plus/rules.yaml``.
+
+    Each violation is returned as a structured row with ``rule_id``,
+    ``severity``, the human-readable message, and — when the rule
+    targets a specific edge — the source and destination labels with
+    file:line. Returns ``{rule_count: 0}`` if no ruleset is configured
+    (not an error: many repos run without rules).
+
+    Args:
+        rules_path: optional explicit path; defaults to
+            ``<repo>/.graphify_plus/rules.yaml``.
+    """
+    import networkx as nx
+
+    from ..runtime.overlay import empty as empty_overlay
+    from ..runtime.rules import RuleSet, evaluate, grade
+
+    repo = graph.repo_root
+    rules_arg = args.get("rules_path")
+    rules_path = Path(rules_arg) if rules_arg else (repo / ".graphify_plus" / "rules.yaml")
+    if not rules_path.exists():
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {"rule_count": 0, "reason": f"no ruleset at {rules_path}"},
+        }
+
+    try:
+        import yaml  # PyYAML — already a hard dep
+    except ImportError:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {"reason": "PyYAML not installed"},
+        }
+    try:
+        ruleset = RuleSet.from_dict(yaml.safe_load(rules_path.read_text()) or {})
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "error": {
+                "code": "BAD_REQUEST",
+                "message": f"could not parse rules.yaml: {exc}",
+            }
+        }
+
+    # Materialise a minimal NetworkX view from the snapshot.
+    G: nx.MultiDiGraph = nx.MultiDiGraph()
+    for sid, sym in graph.by_id.items():
+        G.add_node(sid, **sym)
+    for src, neighbours in graph.out_neighbours.items():
+        for dst, kind, span in neighbours:
+            if dst not in G:
+                G.add_node(dst, id=dst, kind="external", path="")
+            G.add_edge(src, dst, kind=kind, span=span)
+
+    overlay = empty_overlay(G)
+    violations = evaluate(overlay, ruleset)
+    rows: list[dict[str, Any]] = []
+    for v in violations:
+        row: dict[str, Any] = {
+            "rule_id": v.rule_id,
+            "severity": v.severity,
+            "message": v.message,
+        }
+        if v.src and v.src in graph.by_id:
+            sym = graph.by_id[v.src]
+            row["src"] = {
+                "node_id": v.src,
+                "label": _label_for(sym),
+                "source_file": sym.get("path") or "",
+                "line_number": _line_number_for(sym),
+            }
+        elif v.src:
+            row["src"] = {"node_id": v.src, "label": v.src, "source_file": "", "line_number": 0}
+        if v.dst and v.dst in graph.by_id:
+            sym = graph.by_id[v.dst]
+            row["dst"] = {
+                "node_id": v.dst,
+                "label": _label_for(sym),
+                "source_file": sym.get("path") or "",
+                "line_number": _line_number_for(sym),
+            }
+        elif v.dst:
+            row["dst"] = {"node_id": v.dst, "label": v.dst, "source_file": "", "line_number": 0}
+        if v.kind:
+            row["kind"] = v.kind
+        rows.append(row)
+
+    grade_letter = grade(list(violations))
+    budget = int(args.get("budget_tokens") or DEFAULT_BUDGET_TOKENS)
+    kept, more = _budget_clip(rows, budget)
+    return {
+        "results": kept,
+        "more_available": more,
+        "extra": {
+            "rule_count": len(ruleset.rules),
+            "violation_count": len(violations),
+            "errors": sum(1 for v in violations if v.severity == "error"),
+            "warnings": sum(1 for v in violations if v.severity == "warning"),
+            "grade": grade_letter,
+            "rules_path": str(rules_path),
+        },
+    }
+
+
 def graph_stats(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     """Summary stats — used by ``gp daemon status`` and tests."""
     stats = graph.stats
@@ -465,6 +722,12 @@ HANDLERS = {
     "find_by_concept": find_by_concept,
     "whats_central": whats_central,
     "plan": plan,
+    # Sprint 8 — test-coverage overlay handlers:
+    "whats_untested": whats_untested,
+    "coverage_for": coverage_for,
+    "coverage_summary": coverage_summary,
+    # Sprint 9.4 — architectural-drift rules:
+    "rules_check": rules_check,
     "graph_stats": graph_stats,
 }
 

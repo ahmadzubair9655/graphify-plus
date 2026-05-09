@@ -41,6 +41,30 @@ All notable changes to graphify-plus.
   Claude sees the in-context win for using the graph
   (`[graphify-plus] who_calls · 0.05ms · 38 tokens · would have taken
   ~3 grep calls + 1 file reads`).
+- **Test-coverage overlay** (`graphify_plus/daemon/coverage.py`,
+  `gp daemon coverage {ingest|summary|untested}`). Layer 7.1 of the
+  master plan — "the single feature that makes graphify-plus required
+  in any serious engineering setup". Parses Cobertura XML
+  (`coverage xml`, `pytest --cov-report=xml`) and Istanbul JSON (Jest /
+  nyc / Vitest), maps each line hit to the deepest containing symbol,
+  and persists `(symbol_id, lines_covered, lines_total, pct, source)`
+  in a new SQLite table. The daemon's `InMemoryGraph` reads it at
+  build time so existing handlers (`whats_in`, `who_calls`, etc.) get
+  `coverage_pct` and `coverage_lines` on every row for free. New
+  intent tools: `whats_untested(path?, max_pct=10)`, `coverage_for(node)`,
+  `coverage_summary` — all available via the daemon, the CLI, and MCP
+  (`gp_whats_untested`, `gp_coverage_for`, `gp_coverage_summary`). Smoke
+  test: ingest the project's own pytest coverage and `whats_untested`
+  surfaces every 0%-covered handler in milliseconds.
+- **Architectural-rules check via daemon** (`rules_check` op,
+  `gp daemon rules check`). Layer 9.4: wraps the existing
+  `runtime/rules.py` evaluator behind the daemon and the new
+  `gp_rules_check` MCP tool. Returns each violation as a structured row
+  with `rule_id`, `severity`, the human message, and (when applicable)
+  source/destination nodes with file:line — so PR reviewers and Claude
+  can pipe straight into Read/Edit. `--fail-on-error` exits non-zero on
+  any error-severity finding (CI-friendly), and the existing
+  `simulate`/`guardrails` flows keep working unchanged.
 - **Local telemetry sink + `gp daemon stats`** (`graphify_plus/daemon/telemetry.py`).
   Every daemon dispatch appends a JSON line to
   `<repo>/.graphify_plus/telemetry.jsonl` recording
