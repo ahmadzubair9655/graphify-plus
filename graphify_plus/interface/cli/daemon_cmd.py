@@ -488,6 +488,105 @@ def plugin_list_cmd(as_json: bool) -> None:
             click.echo(f"    - {k}")
 
 
+@daemon_cmd.command("quickstart")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def quickstart_cmd(repo: Path, as_json: bool) -> None:
+    """First-run UX (Layer 5.3): init + snapshot + install + recipes."""
+    from ...daemon.quickstart import render_quickstart, run_quickstart
+
+    out = run_quickstart(repo)
+    if as_json:
+        click.echo(json.dumps(out, indent=2))
+        return
+    click.echo(render_quickstart(out))
+
+
+@daemon_cmd.command("privacy")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option(
+    "--dry-run-network",
+    "dry_run",
+    is_flag=True,
+    help="List every outbound endpoint the current configuration would touch.",
+)
+@click.option("--json", "as_json", is_flag=True)
+def privacy_cmd(repo: Path, dry_run: bool, as_json: bool) -> None:
+    """Privacy / security model declaration (Layer 12.1)."""
+    from ...daemon.ops_rigor import PRIVACY_DECLARATION, dry_run_network
+
+    if dry_run:
+        probes = dry_run_network(repo.resolve())
+        if as_json:
+            click.echo(json.dumps([p.__dict__ for p in probes], indent=2))
+            return
+        for p in probes:
+            mark = "ENABLED" if p.enabled else "off"
+            click.echo(f"  [{mark:<8}] {p.purpose:<22}  {p.endpoint}")
+            if p.note:
+                click.echo(f"             {p.note}")
+        return
+    click.echo(PRIVACY_DECLARATION)
+
+
+@daemon_cmd.command("perfcheck")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--samples", default=500, type=int)
+@click.option("--json", "as_json", is_flag=True)
+def perfcheck_cmd(repo: Path, samples: int, as_json: bool) -> None:
+    """Performance regression check (Layer 12.2)."""
+    from ...daemon.indexes import InMemoryGraph
+    from ...daemon.ops_rigor import perfcheck
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    if not _cp(repo).exists():
+        raise click.ClickException(f"no graph cache; run `gp init` first")
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    res = perfcheck(snap, samples=samples)
+    body = {
+        "n_symbols": res.n_symbols,
+        "samples": res.samples,
+        "p50_ms": res.p50_ms,
+        "p95_ms": res.p95_ms,
+        "p99_ms": res.p99_ms,
+        "target": res.target,
+        "pass_p50": res.pass_p50,
+        "pass_p99": res.pass_p99,
+    }
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+    else:
+        click.echo(
+            f"{res.n_symbols} symbols, {res.samples} samples — "
+            f"p50={res.p50_ms}ms p95={res.p95_ms}ms p99={res.p99_ms}ms"
+        )
+        click.echo(
+            f"target: p50<={res.target.get('p50_ms', '?')}ms p99<={res.target.get('p99_ms', '?')}ms"
+        )
+        click.echo(
+            f"pass_p50={res.pass_p50}  pass_p99={res.pass_p99}"
+        )
+    if not (res.pass_p50 and res.pass_p99):
+        sys.exit(1)
+
+
 @daemon_cmd.command("tutorial")
 @click.option("--json", "as_json", is_flag=True)
 def tutorial_cmd(as_json: bool) -> None:
