@@ -488,6 +488,335 @@ def plugin_list_cmd(as_json: bool) -> None:
             click.echo(f"    - {k}")
 
 
+@daemon_cmd.group("refactor")
+def refactor_group() -> None:
+    """Pre-built refactor playbooks (Layer 10.3)."""
+
+
+@refactor_group.command("extract-module")
+@click.option("--pattern", required=True)
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def refactor_extract_cmd(pattern: str, repo: Path, as_json: bool) -> None:
+    from ...daemon.indexes import InMemoryGraph
+    from ...daemon.workflows import extract_module_plan
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    plan = extract_module_plan(snap, pattern)
+    if as_json:
+        click.echo(json.dumps(plan.to_dict(), indent=2))
+    else:
+        click.echo(f"# {plan.name}\n_{plan.description}_\n\nrisk={plan.risk}, changes={plan.estimated_changes}")
+        for s in plan.steps:
+            click.echo(f"  - {s.description}")
+
+
+@refactor_group.command("rename")
+@click.option("--node", required=True)
+@click.option("--to", "new_name", required=True)
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def refactor_rename_cmd(node: str, new_name: str, repo: Path, as_json: bool) -> None:
+    from ...daemon.indexes import InMemoryGraph
+    from ...daemon.workflows import rename_plan
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    plan = rename_plan(snap, node=node, to=new_name)
+    if as_json:
+        click.echo(json.dumps(plan.to_dict(), indent=2))
+        return
+    click.echo(f"# {plan.name}\nrisk={plan.risk}")
+    for s in plan.steps:
+        loc = f" ({s.file}:{s.line})" if s.file else ""
+        click.echo(f"  - {s.description}{loc}")
+
+
+@daemon_cmd.command("docs")
+@click.argument("module")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--out", default="", help="Write to file instead of stdout.")
+def docs_cmd(module: str, repo: Path, out: str) -> None:
+    """Generate per-module documentation (Layer 10.5)."""
+    from ...daemon.indexes import InMemoryGraph
+    from ...daemon.workflows import generate_module_docs
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    body = generate_module_docs(snap, module)
+    if out:
+        Path(out).write_text(body, encoding="utf-8")
+        click.echo(f"wrote {out}")
+    else:
+        click.echo(body)
+
+
+@daemon_cmd.command("time-machine")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--rev", default="", help="Show summary at this commit.")
+@click.option("--compare", default="", help="<rev_a>..<rev_b> structural diff.")
+@click.option("--evolution", "evolution_path", default="", help="Show commit history for this file.")
+@click.option("--json", "as_json", is_flag=True)
+def time_machine_cmd(
+    repo: Path, rev: str, compare: str, evolution_path: str, as_json: bool
+) -> None:
+    """Time-machine queries (Layer 10.4)."""
+    from ...daemon.workflows import at_revision, compare_revs, evolution
+
+    repo = repo.resolve()
+    if rev:
+        body = at_revision(repo, rev)
+    elif compare and ".." in compare:
+        a, b = compare.split("..", 1)
+        delta = compare_revs(repo, a, b)
+        body = delta.__dict__
+    elif evolution_path:
+        body = evolution(repo, evolution_path)
+    else:
+        raise click.ClickException("specify --rev, --compare A..B, or --evolution PATH")
+    if as_json:
+        click.echo(json.dumps(body, indent=2, default=str))
+    else:
+        click.echo(json.dumps(body, indent=2, default=str))
+
+
+@daemon_cmd.group("workspace")
+def workspace_group() -> None:
+    """Multi-repo / monorepo workspaces (Layer 11.3)."""
+
+
+@workspace_group.command("list")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def workspace_list_cmd(repo: Path) -> None:
+    from ...daemon.workflows import load_workspaces
+
+    repo = repo.resolve()
+    workspaces = load_workspaces(repo)
+    if not workspaces:
+        click.echo("no workspaces declared (.graphify_plus/workspaces.yaml)")
+        return
+    for w in workspaces:
+        click.echo(f"  {w.name:<20} {w.path}  {w.description}")
+
+
+@daemon_cmd.group("skill")
+def skill_group() -> None:
+    """Skills marketplace (Layer 11.4)."""
+
+
+@skill_group.command("list")
+@click.option("--registry", default="", help="Path to a local registry JSON.")
+def skill_list_cmd(registry: str) -> None:
+    from ...daemon.workflows import load_registry
+
+    p = Path(registry) if registry else None
+    rows = load_registry(p)
+    for r in rows:
+        click.echo(f"  {r.name:<20} {r.description}")
+        click.echo(f"      {r.url}")
+
+
+@skill_group.command("install")
+@click.argument("name")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--registry", default="")
+def skill_install_cmd(name: str, repo: Path, registry: str) -> None:
+    from ...daemon.workflows import install_skill, load_registry
+
+    p = Path(registry) if registry else None
+    rows = load_registry(p)
+    entry = next((r for r in rows if r.name == name), None)
+    if entry is None:
+        raise click.ClickException(f"no skill named {name!r} in registry")
+    target = install_skill(repo.resolve(), entry)
+    click.echo(f"installed: {target}")
+
+
+@daemon_cmd.command("ingest-conversations")
+@click.argument("transcripts_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def ingest_conversations_cmd(transcripts_dir: Path, repo: Path) -> None:
+    """Ingest conversation transcripts as decision nodes (Layer 6.4)."""
+    from ...daemon.workflows import ingest_conversations
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    store = Store(_cp(repo))
+    try:
+        summary = ingest_conversations(store, repo, transcripts_dir)
+    finally:
+        store.close()
+    click.echo(
+        f"ingested {summary['decisions']} decision(s) from {summary['transcripts']} transcript(s)"
+    )
+
+
+@daemon_cmd.command("license-audit")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def license_audit_cmd(repo: Path, as_json: bool) -> None:
+    """License compatibility audit (Layer 9.3)."""
+    from ...daemon.iac_config_license import license_audit
+
+    repo = repo.resolve()
+    out = license_audit(repo)
+    if as_json:
+        click.echo(json.dumps(out, indent=2))
+        return
+    for p in out["packages"]:
+        click.echo(f"  {p['package']}: {p['license']}  ({p['source']})")
+    if out["issues"]:
+        click.echo("")
+        click.echo("issues:")
+        for i in out["issues"]:
+            click.echo(f"  ⚠ {i['package']} ({i['license']}): {i['issue']}")
+
+
+@daemon_cmd.command("config-drift")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def config_drift_cmd(repo: Path, as_json: bool) -> None:
+    """Env-var / feature-flag drift detection (Layer 8.4)."""
+    from ...daemon.iac_config_license import detect_drift
+
+    out = detect_drift(repo.resolve())
+    if as_json:
+        click.echo(json.dumps(out, indent=2))
+        return
+    if out["referenced_but_undeclared"]:
+        click.echo("env vars referenced in code but undeclared:")
+        for k in out["referenced_but_undeclared"]:
+            click.echo(f"  - {k}")
+    if out["declared_but_unused"]:
+        click.echo("env vars declared but unused:")
+        for k in out["declared_but_unused"]:
+            click.echo(f"  - {k}")
+    if out["feature_flags"]:
+        click.echo("feature flags referenced:")
+        for k in out["feature_flags"]:
+            click.echo(f"  - {k}")
+
+
+@daemon_cmd.command("ingest-runtime")
+@click.argument("report", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def ingest_runtime_cmd(report: Path, repo: Path) -> None:
+    """Ingest a runtime trace (py-spy speedscope or pprof text)."""
+    from ...daemon.runtime_intel import ingest_runtime
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    store = Store(_cp(repo))
+    try:
+        summary = ingest_runtime(store, repo, report)
+    finally:
+        store.close()
+    click.echo(
+        f"format={summary['format']}  raw_frames={summary['raw_frames']}  "
+        f"attributed={summary['attributed']}"
+    )
+
+
+@daemon_cmd.command("find-origin")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--stacktrace", required=True, help="File containing the stacktrace.")
+@click.option("--deploy-sha", default="", help="Deploy SHA for since-then movement check.")
+@click.option("--json", "as_json", is_flag=True)
+def find_origin_cmd(repo: Path, stacktrace: str, deploy_sha: str, as_json: bool) -> None:
+    """Map a stacktrace to current code (Layer 7.3)."""
+    from ...daemon.runtime_intel import map_stacktrace_to_symbols, parse_stacktrace
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    text = Path(stacktrace).read_text(encoding="utf-8")
+    frames = parse_stacktrace(text)
+    store = Store(_cp(repo))
+    try:
+        symbols = store.all_symbols()
+    finally:
+        store.close()
+    mappings = map_stacktrace_to_symbols(frames, symbols, repo, deploy_sha=deploy_sha)
+    rows = [
+        {
+            "file": m.frame.file,
+            "line": m.frame.line,
+            "func": m.frame.func,
+            "symbol": m.label,
+            "moved_since_deploy": m.moved_since_deploy,
+            "edits_since_deploy": m.edits_since_deploy,
+        }
+        for m in mappings
+    ]
+    if as_json:
+        click.echo(json.dumps(rows, indent=2))
+        return
+    for r in rows:
+        loc = f"{r['file']}:{r['line']}"
+        sym = f" → {r['symbol']}" if r['symbol'] else " (unmapped)"
+        moved = " (moved)" if r["moved_since_deploy"] else ""
+        click.echo(f"  {loc}{sym}{moved}  edits={r['edits_since_deploy']}")
+
+
 @daemon_cmd.command("quickstart")
 @click.option(
     "--repo",
