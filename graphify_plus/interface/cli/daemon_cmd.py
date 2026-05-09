@@ -46,14 +46,20 @@ def daemon_cmd() -> None:
     default=Path("."),
 )
 @click.option("--detach", is_flag=True, help="Start in the background and return immediately.")
-def start_cmd(repo: Path, detach: bool) -> None:
+@click.option(
+    "--no-watch",
+    is_flag=True,
+    help="Skip the embedded file watcher (use when you run `gp watch` separately).",
+)
+def start_cmd(repo: Path, detach: bool, no_watch: bool) -> None:
     repo = repo.resolve()
     client = DaemonClient(repo)
     if client.is_running():
         click.echo(f"daemon already running on {socket_path(repo)}", err=True)
         return
+    watch = not no_watch
     if not detach:
-        rc = run_server(repo)
+        rc = run_server(repo, watch=watch)
         sys.exit(rc)
     pid = os.fork()
     if pid > 0:
@@ -75,7 +81,7 @@ def start_cmd(repo: Path, detach: bool) -> None:
     os.dup2(devnull, 0)
     os.dup2(devnull, 1)
     os.dup2(devnull, 2)
-    sys.exit(run_server(repo))
+    sys.exit(run_server(repo, watch=watch))
 
 
 @daemon_cmd.command("stop")
@@ -158,6 +164,73 @@ def refresh_cmd(repo: Path) -> None:
         f"{extra.get('files', 0)} files, "
         f"{extra.get('elapsed_ms', 0):.1f}ms, "
         f"token={extra.get('freshness_token', '')}"
+    )
+
+
+@daemon_cmd.command("install")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option(
+    "--force", is_flag=True, help="Overwrite existing files instead of skipping."
+)
+def install_cmd(repo: Path, force: bool) -> None:
+    """Install the routing skill and the pre-grep hook into ``.claude/``.
+
+    Drops two files into the repo:
+
+      * ``.claude/skills/graphify-plus/SKILL.md`` — the routing rule
+        Claude reads to decide *when* to use graph tools instead of grep.
+      * ``.claude/hooks/pre_grep_hook.py`` — a PreToolUse hook that
+        nudges Claude toward graphify-plus when grep is about to run on
+        a bareword and the daemon has a structural hit.
+
+    The hook is *not* auto-registered in ``settings.json`` — that's an
+    explicit step the user takes when they want it on. We print the
+    snippet so the operator can copy/paste.
+    """
+    import shutil
+    from importlib import resources
+
+    repo = repo.resolve()
+    skill_dst = repo / ".claude" / "skills" / "graphify-plus" / "SKILL.md"
+    hook_dst = repo / ".claude" / "hooks" / "pre_grep_hook.py"
+
+    template_root = resources.files("graphify_plus.daemon.templates")
+    written: list[Path] = []
+    skipped: list[Path] = []
+    for src_name, dst in (("SKILL.md", skill_dst), ("pre_grep_hook.py", hook_dst)):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if dst.exists() and not force:
+            skipped.append(dst)
+            continue
+        with resources.as_file(template_root / src_name) as src_path:
+            shutil.copyfile(src_path, dst)
+        if dst.suffix == ".py":
+            dst.chmod(0o755)
+        written.append(dst)
+
+    for p in written:
+        click.echo(f"installed: {p.relative_to(repo)}")
+    for p in skipped:
+        click.echo(f"skipped (exists, pass --force): {p.relative_to(repo)}", err=True)
+    click.echo("")
+    click.echo("To enable the pre-grep hook, add this to .claude/settings.json:")
+    click.echo(
+        '  {\n'
+        '    "hooks": {\n'
+        '      "PreToolUse": [\n'
+        '        {\n'
+        '          "matcher": "Grep|Glob",\n'
+        '          "hooks": [\n'
+        '            {"type": "command", "command": ".claude/hooks/pre_grep_hook.py"}\n'
+        '          ]\n'
+        '        }\n'
+        '      ]\n'
+        '    }\n'
+        '  }'
     )
 
 

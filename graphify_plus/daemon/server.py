@@ -53,7 +53,7 @@ MAX_LINE_BYTES = 4 * 1024 * 1024  # 4 MiB max request line — requests should b
 class DaemonServer:
     """Unix-socket RPC server holding a single ``InMemoryGraph`` snapshot."""
 
-    def __init__(self, repo_root: Path):
+    def __init__(self, repo_root: Path, *, watch: bool = True):
         self.repo_root = repo_root.resolve()
         self.daemon_dir = self.repo_root / DAEMON_DIR
         self.daemon_dir.mkdir(parents=True, exist_ok=True)
@@ -65,6 +65,12 @@ class DaemonServer:
         self._stop = threading.Event()
         self._workers: list[threading.Thread] = []
         self._refresh_lock = threading.Lock()
+        self._want_watcher = watch
+        self._watcher: Any = None
+        # Coalesce watcher-driven refreshes into one rebuild even when many
+        # files change in a burst (e.g. a `git pull`).
+        self._refresh_pending = threading.Event()
+        self._refresh_thread: threading.Thread | None = None
 
     # ---- lifecycle -------------------------------------------------------
 
@@ -121,6 +127,9 @@ class DaemonServer:
         """
         self._unlink_stale_socket()
         self.pid_path.write_text(str(os.getpid()))
+        if self._want_watcher:
+            self._start_watcher()
+            self._start_refresh_loop()
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             s.bind(str(self.socket_path))
@@ -163,6 +172,7 @@ class DaemonServer:
                 pass
 
     def _teardown(self) -> None:
+        self._stop_watcher()
         try:
             if self._sock is not None:
                 self._sock.close()
@@ -174,6 +184,65 @@ class DaemonServer:
         except OSError:
             pass
         self._cleanup_pid()
+
+    # ---- watcher integration (Sprint 3) ---------------------------------
+
+    def _start_watcher(self) -> None:
+        """Subscribe the runtime watcher to drive incremental refresh.
+
+        Failure to start the watcher is *not* fatal — the daemon still
+        serves queries against the snapshot loaded at startup, but
+        freshness will degrade as files change. We log loudly so the
+        operator sees it in ``gp daemon status`` (via the build log).
+        """
+        try:
+            from ..runtime.watcher import Watcher
+
+            self._watcher = Watcher(self.repo_root)
+            self._watcher.subscribe(lambda _update: self._signal_refresh())
+            self._watcher.start()
+            log.info("daemon watcher subscribed to %s", self.repo_root)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("daemon watcher unavailable: %s", exc)
+            self._watcher = None
+
+    def _stop_watcher(self) -> None:
+        if self._watcher is not None:
+            try:
+                self._watcher.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            self._watcher = None
+        # Wake the refresh loop so it sees ``_stop`` and exits.
+        self._refresh_pending.set()
+        if self._refresh_thread is not None:
+            self._refresh_thread.join(timeout=2.0)
+            self._refresh_thread = None
+
+    def _signal_refresh(self) -> None:
+        """Watcher callback. Coalesces bursts — many file events in a
+        short window all collapse into a single rebuild.
+        """
+        self._refresh_pending.set()
+
+    def _start_refresh_loop(self) -> None:
+        def _loop() -> None:
+            while not self._stop.is_set():
+                if not self._refresh_pending.wait(timeout=0.5):
+                    continue
+                self._refresh_pending.clear()
+                if self._stop.is_set():
+                    return
+                # Tiny coalescing window — let further bursts accumulate.
+                time.sleep(0.05)
+                self._refresh_pending.clear()
+                try:
+                    self.refresh()
+                except Exception:  # noqa: BLE001
+                    log.exception("daemon refresh loop: rebuild failed")
+
+        self._refresh_thread = threading.Thread(target=_loop, daemon=True)
+        self._refresh_thread.start()
 
     def _cleanup_pid(self) -> None:
         try:
@@ -359,11 +428,11 @@ class DaemonServer:
         )
 
 
-def run_server(repo_root: Path) -> int:
+def run_server(repo_root: Path, *, watch: bool = True) -> int:
     """Foreground entry-point: load and serve until SIGINT."""
     import signal
 
-    server = DaemonServer(repo_root)
+    server = DaemonServer(repo_root, watch=watch)
     server.load_initial()
 
     def _on_sig(_signum: int, _frame: Any) -> None:

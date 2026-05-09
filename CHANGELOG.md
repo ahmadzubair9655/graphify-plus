@@ -41,6 +41,21 @@ All notable changes to graphify-plus.
   Claude sees the in-context win for using the graph
   (`[graphify-plus] who_calls · 0.05ms · 38 tokens · would have taken
   ~3 grep calls + 1 file reads`).
+- **Watcher-driven incremental refresh** (`graphify_plus/daemon/server.py`).
+  The daemon embeds the existing `runtime.watcher.Watcher` and subscribes a
+  signal-and-coalesce callback that triggers a snapshot rebuild whenever a
+  watched file changes. Bursts (e.g. a `git pull` or a multi-file save)
+  collapse into a single rebuild thanks to a 50ms coalescing window.
+  `gp daemon start --no-watch` opts out for users who run `gp watch`
+  separately.
+- **Routing skill + pre-grep hook** (`graphify_plus/daemon/templates/`,
+  `gp daemon install`). Ships the `SKILL.md` Claude reads to decide *when*
+  to use graphify-plus instead of grep, plus a Claude-Code-compatible
+  PreToolUse hook that nudges toward the graph when grep is about to run
+  on a bareword and the daemon has a structural hit. Stale graphs stay
+  silent — Layer 3.2 of the master plan: "stale graphs have lost the
+  right to advise". `gp daemon install` drops both into the repo's
+  `.claude/` and prints the settings.json snippet to enable the hook.
 - **MCP intent tools** (`graphify_plus/interface/mcp_server.py`). Eight
   new MCP tools (`gp_whats_in`, `gp_who_calls`, `gp_whos_called_by`,
   `gp_what_depends_on`, `gp_what_does_this_depend_on`,
