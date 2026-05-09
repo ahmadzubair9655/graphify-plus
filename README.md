@@ -6,6 +6,19 @@ This is the v5 line. The pre-v4 product was an enhancement layer over [safishams
 
 ---
 
+## What graphify-plus is NOT
+
+The mark of a mature project is publishing what it explicitly will not do.
+
+- **graphify-plus is not a database.** No transactions, no high-availability, no replication. The graph is an artifact, not a system of record.
+- **graphify-plus is not a security tool.** SAST/CVE overlays inform; they don't audit. A real security review is still required.
+- **graphify-plus does not replace your IDE.** Symbol resolution, auto-completion, jump-to-definition, hover-to-type stay with the LSP. The graph is *additional* context, not a substitute.
+- **graphify-plus does not run your code.** Runtime ingest is opt-in and consumes traces produced elsewhere.
+- **graphify-plus is not your team's wiki.** It can ingest and link, but the canonical decision still lives in the source artifact.
+- **graphify-plus is not real-time.** Watcher latency exists. Architectural rule violations are detected on the next build, not at the keystroke.
+
+---
+
 ## Install
 
 ```bash

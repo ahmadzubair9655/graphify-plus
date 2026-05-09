@@ -403,6 +403,58 @@ def ingest_github_cmd(repo: Path, state: str, limit: int, issues: bool, prs: boo
         client.call("refresh")
 
 
+@daemon_cmd.group("claude-md")
+def claude_md_group() -> None:
+    """Manage the graphify-plus owned section in CLAUDE.md / AGENTS.md (Layer 23)."""
+
+
+@claude_md_group.command("update")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--focus", default="", help="Per-task hint: focus the section on this symbol.")
+def claude_md_update_cmd(repo: Path, focus: str) -> None:
+    """Refresh the graphify-plus owned section across CLAUDE.md/AGENTS.md."""
+    from ...daemon.context_file import build_section, render_section, update_all_known
+    from ...daemon.indexes import InMemoryGraph
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    if not _cp(repo).exists():
+        raise click.ClickException(f"no graph cache at {_cp(repo)}")
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    section = build_section(snap, focus=focus)
+    body = render_section(section, repo_name=repo.name)
+    results = update_all_known(repo, body)
+    for r in results:
+        click.echo(f"{r['action']}: {r['path']}")
+
+
+@claude_md_group.command("strip")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def claude_md_strip_cmd(repo: Path) -> None:
+    """Remove the graphify-plus owned section from CLAUDE.md."""
+    from ...daemon.context_file import strip_owned_section
+
+    repo = repo.resolve()
+    p = repo / "CLAUDE.md"
+    if not p.exists():
+        click.echo("CLAUDE.md not found")
+        return
+    p.write_text(strip_owned_section(p.read_text(encoding="utf-8")), encoding="utf-8")
+    click.echo(f"stripped owned section from {p}")
+
+
 @daemon_cmd.group("plugin")
 def plugin_group() -> None:
     """Manage third-party plugins (`gp daemon plugin list`)."""
