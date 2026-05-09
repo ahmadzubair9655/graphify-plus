@@ -488,6 +488,110 @@ def plugin_list_cmd(as_json: bool) -> None:
             click.echo(f"    - {k}")
 
 
+@daemon_cmd.command("trend")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--limit", default=90, type=int)
+@click.option("--weekly", is_flag=True, help="Render the last 7 snapshots as a weekly digest.")
+@click.option("--snapshot", is_flag=True, help="Take a fresh snapshot first.")
+@click.option("--json", "as_json", is_flag=True)
+def trend_cmd(repo: Path, limit: int, weekly: bool, snapshot: bool, as_json: bool) -> None:
+    """Show health trend / weekly digest from .graphify_plus/health-history.jsonl."""
+    from ...daemon.anomaly import (
+        append_snapshot,
+        history,
+        render_trend,
+        render_weekly,
+        take_snapshot,
+        trend_summary,
+    )
+    from ...daemon.indexes import InMemoryGraph
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    if snapshot:
+        if not _cp(repo).exists():
+            raise click.ClickException("no graph cache; run `gp init` first")
+        store = Store(_cp(repo))
+        try:
+            snap = InMemoryGraph.from_store(store, repo)
+        finally:
+            store.close()
+        append_snapshot(repo, take_snapshot(snap))
+        click.echo("snapshot appended")
+    rows = history(repo, limit=limit)
+    if as_json:
+        click.echo(json.dumps({"summary": trend_summary(rows), "rows": rows}, indent=2))
+        return
+    if weekly:
+        click.echo(render_weekly(repo, rows))
+    else:
+        click.echo(render_trend(rows))
+
+
+@daemon_cmd.group("audit")
+def audit_group() -> None:
+    """Audit log + logical undo (Layer 20)."""
+
+
+@audit_group.command("log")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--namespace", default="", help="Filter by namespace (default: current branch).")
+@click.option("--json", "as_json", is_flag=True)
+def audit_log_cmd(repo: Path, namespace: str, as_json: bool) -> None:
+    from ...daemon.audit_log import current_namespace, read_all
+
+    repo = repo.resolve()
+    ns = namespace or current_namespace(repo)
+    rows = [r for r in read_all(repo) if not namespace or r.namespace == ns]
+    if as_json:
+        click.echo(json.dumps([r.to_dict() for r in rows], indent=2))
+        return
+    if not rows:
+        click.echo("no audit records")
+        return
+    for r in rows:
+        click.echo(
+            f"  {r.id}  {r.kind:<12}  {r.namespace}  {r.target}  {r.agent}"
+        )
+
+
+@audit_group.command("revert")
+@click.argument("record_id")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--agent", default="cli")
+def audit_revert_cmd(record_id: str, repo: Path, agent: str) -> None:
+    from ...daemon.audit_log import revert
+
+    repo = repo.resolve()
+    rec = revert(repo, record_id, agent=agent)
+    click.echo(f"tombstone written: {rec.id} -> superseded {record_id}")
+
+
+@daemon_cmd.command("lsp")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def lsp_cmd(repo: Path) -> None:
+    """Run the LSP shim over stdio (Layer 17)."""
+    from ...daemon.lsp_shim import run_lsp
+
+    sys.exit(run_lsp(repo.resolve()))
+
+
 @daemon_cmd.command("gpl")
 @click.argument("query", required=False, default="")
 @click.option(
