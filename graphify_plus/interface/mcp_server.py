@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Any
 
 from ..core.symbol_graph import build as build_graph
+from ..daemon import DaemonClient, DaemonNotRunning, InMemoryGraph
+from ..daemon.handlers import HANDLERS as INTENT_HANDLERS
+from ..daemon.receipts import make_receipt
 from ..query.budget import frame_to_budget
 from ..query.partition import compute_partition
 from ..query.semantic import find as semantic_find
@@ -230,6 +233,103 @@ def tool_blast_radius(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ---------- intent-tool wrapper (daemon-backed with direct fallback) -----
+
+
+def _run_intent(op: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Route an intent tool through the daemon when available, else execute
+    in-process by building the in-memory graph from the on-disk cache.
+
+    Same response envelope either way:
+        {ok, freshness, receipt, results, more_available, [extra]}
+    """
+    repo = Path(args.pop("repo", ".")).resolve()
+    handler_args = {k: v for k, v in args.items() if k != "request_id"}
+
+    client = DaemonClient(repo)
+    if client.is_running():
+        try:
+            return client.call(op, handler_args)
+        except DaemonNotRunning:
+            pass  # fall through to direct path
+
+    # Direct path: build the snapshot from disk. Slower (cold-start the whole
+    # daemon for one query), but a useful safety net before users have run
+    # `gp daemon start`.
+    if op in ("ping", "graph_stats"):
+        # graph_stats without daemon is meaningless other than as a probe.
+        return {"ok": True, "running": False, "results": [], "more_available": 0}
+    handler = INTENT_HANDLERS.get(op)
+    if handler is None:
+        return {
+            "ok": False,
+            "error": {"code": "UNKNOWN_OP", "message": f"unknown intent op: {op}"},
+        }
+
+    store = Store(cache_path(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+
+    import time as _time
+
+    t0 = _time.perf_counter()
+    payload = handler(snap, handler_args)
+    elapsed_ms = (_time.perf_counter() - t0) * 1000.0
+    if "error" in payload:
+        return {"ok": False, "error": payload["error"]}
+    results = payload.get("results", []) or []
+    return {
+        "ok": True,
+        "freshness": snap.freshness(),
+        "receipt": make_receipt(op, elapsed_ms, results, len(results)),
+        "results": results,
+        "more_available": payload.get("more_available", 0),
+        "extra": payload.get("extra", {}),
+    }
+
+
+def tool_whats_in(args: dict[str, Any]) -> dict[str, Any]:
+    """List the symbols inside a file or directory, ranked by structural weight."""
+    return _run_intent("whats_in", args)
+
+
+def tool_who_calls(args: dict[str, Any]) -> dict[str, Any]:
+    """Direct callers (or referencers) of a symbol."""
+    return _run_intent("who_calls", args)
+
+
+def tool_whos_called_by(args: dict[str, Any]) -> dict[str, Any]:
+    """Direct callees of a symbol."""
+    return _run_intent("whos_called_by", args)
+
+
+def tool_what_depends_on(args: dict[str, Any]) -> dict[str, Any]:
+    """Inbound-edge dependents (calls, refs, imports, extends, implements)."""
+    return _run_intent("what_depends_on", args)
+
+
+def tool_what_does_this_depend_on(args: dict[str, Any]) -> dict[str, Any]:
+    """Outbound dependencies of a symbol."""
+    return _run_intent("what_does_this_depend_on", args)
+
+
+def tool_find_by_name(args: dict[str, Any]) -> dict[str, Any]:
+    """Fuzzy label match. Returns confidence-ranked candidates."""
+    return _run_intent("find_by_name", args)
+
+
+def tool_find_by_concept(args: dict[str, Any]) -> dict[str, Any]:
+    """Concept / natural-language search over the symbol graph."""
+    return _run_intent("find_by_concept", args)
+
+
+def tool_whats_central(args: dict[str, Any]) -> dict[str, Any]:
+    """Top-N central symbols by PageRank."""
+    return _run_intent("whats_central", args)
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -241,6 +341,15 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_simulate": tool_simulate,
     "gp_guardrails": tool_guardrails,
     "gp_blast_radius": tool_blast_radius,
+    # Sprint 2 intent-typed tools (daemon-backed):
+    "gp_whats_in": tool_whats_in,
+    "gp_who_calls": tool_who_calls,
+    "gp_whos_called_by": tool_whos_called_by,
+    "gp_what_depends_on": tool_what_depends_on,
+    "gp_what_does_this_depend_on": tool_what_does_this_depend_on,
+    "gp_find_by_name": tool_find_by_name,
+    "gp_find_by_concept": tool_find_by_concept,
+    "gp_whats_central": tool_whats_central,
 }
 
 
@@ -323,4 +432,12 @@ __all__ = [
     "tool_simulate",
     "tool_guardrails",
     "tool_blast_radius",
+    "tool_whats_in",
+    "tool_who_calls",
+    "tool_whos_called_by",
+    "tool_what_depends_on",
+    "tool_what_does_this_depend_on",
+    "tool_find_by_name",
+    "tool_find_by_concept",
+    "tool_whats_central",
 ]

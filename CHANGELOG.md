@@ -4,6 +4,50 @@ All notable changes to graphify-plus.
 
 ## Unreleased
 
+### Added
+
+- **In-memory graph daemon** (`graphify_plus/daemon/`). A long-running
+  local process that holds the symbol graph in RAM with pre-computed
+  indexes (label trie, inverted-text index, 1-hop adjacency cache,
+  PageRank top-N, communities) so common queries return in
+  sub-millisecond P50 instead of paying the SQLite + NetworkX cold-start
+  cost on every call. Bound to a Unix domain socket under
+  `$TMPDIR/gp-<hash>.sock` (short path keeps macOS `AF_UNIX` happy).
+  Surfaces a JSON-line RPC protocol with a uniform response envelope:
+  `{ok, freshness, receipt, results, more_available}`. Lifecycle and
+  query commands ship as `gp daemon {start,stop,status,refresh,query}`.
+- **Intent-typed tools** (`graphify_plus/daemon/handlers.py`). Each
+  handler answers exactly one question and returns rows with
+  `{node_id, label, source_file, line_number, snippet, confidence,
+  kind}` so callers can pipe straight into Read/Edit without a second
+  hop. Shipped: `whats_in`, `who_calls`, `whos_called_by`,
+  `what_depends_on`, `what_does_this_depend_on`, `find_by_name`
+  (exact → prefix → suffix → short-name → substring confidence
+  ladder), `find_by_concept` (cheap inverted-index path + opt-in heavy
+  BM25 + community-weighted path), `whats_central`. All responses are
+  token-budgeted (default 1500 tokens) with a `more_available` count
+  for paging. Unresolved-call placeholders (`self.login`, `s.login`)
+  are rolled back into their real symbol so `who_calls` works through
+  the existing adapter limitations.
+- **Freshness contract** (`graphify_plus/daemon/protocol.py`,
+  `graphify_plus/daemon/indexes.py`). Every daemon response includes a
+  `freshness` envelope with `trust ∈ {FRESH, LIVE_AHEAD, STALE_FILES,
+  STALE_REBUILD_NEEDED}`, a 12-hex `freshness_token` that changes
+  whenever the graph changes, the count of files modified since the
+  last build, the first 16 stale paths, and a one-line hint when trust
+  degrades.
+- **Per-call receipts** (`graphify_plus/daemon/receipts.py`). Each
+  response carries `{op, elapsed_ms, tokens, grep_equivalent}` so
+  Claude sees the in-context win for using the graph
+  (`[graphify-plus] who_calls · 0.05ms · 38 tokens · would have taken
+  ~3 grep calls + 1 file reads`).
+- **MCP intent tools** (`graphify_plus/interface/mcp_server.py`). Eight
+  new MCP tools (`gp_whats_in`, `gp_who_calls`, `gp_whos_called_by`,
+  `gp_what_depends_on`, `gp_what_does_this_depend_on`,
+  `gp_find_by_name`, `gp_find_by_concept`, `gp_whats_central`) route
+  through the daemon when running and fall back to an in-process build
+  when it isn't, so the same call works regardless of daemon state.
+
 ### Docs
 
 - **README rewritten for 5.1.0 surface** (`README.md`,
