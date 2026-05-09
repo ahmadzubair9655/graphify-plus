@@ -109,9 +109,47 @@ class LiveAttachConfig:
     interval_s: int = 600
 
 
+def attach_node_inspect(
+    pid: int, *, duration_s: int = 30, output: Path | None = None
+) -> Path | None:
+    """Attach the V8 inspector to a Node process and grab a CPU profile.
+
+    Strategy: Node's ``--inspect`` exposes a Chrome DevTools Protocol
+    endpoint. ``node --inspect-brk`` only works at process start, so
+    we use ``kill -SIGUSR1 <pid>`` to enable inspector on a running
+    process and then talk to it via the inspector socket. To stay
+    self-contained without ``websocket-client`` we just record the
+    fact that the attach was attempted and the operator can use the
+    Chrome DevTools UI; a full programmatic profile dump is layered
+    on by ``graphify-plus[profiler-node]``.
+
+    Returns ``None`` when SIGUSR1 isn't deliverable (Windows / non-PID).
+    """
+    import signal as _signal
+
+    output = output or Path(f"/tmp/gp-node-{pid}-{int(time.time())}.txt")
+    try:
+        os.kill(pid, _signal.SIGUSR1)
+    except (ProcessLookupError, PermissionError, OSError) as exc:
+        log.warning("node-inspect attach failed: %s", exc)
+        return None
+    try:
+        output.write_text(
+            f"node-inspect SIGUSR1 sent to pid {pid}; open chrome://inspect "
+            f"and capture a {duration_s}s CPU profile. Save the .cpuprofile next "
+            f"to this file and re-run `gp daemon ingest-runtime`.\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        return None
+    return output
+
+
 def live_attach_once(cfg: LiveAttachConfig) -> Path | None:
     if cfg.adapter == "py-spy":
         return attach_py_spy(cfg.pid, duration_s=cfg.duration_s)
+    if cfg.adapter == "node-inspect":
+        return attach_node_inspect(cfg.pid, duration_s=cfg.duration_s)
     log.warning("adapter %s not implemented for one-shot attach", cfg.adapter)
     return None
 
@@ -119,6 +157,7 @@ def live_attach_once(cfg: LiveAttachConfig) -> Path | None:
 __all__ = [
     "LiveAttachConfig",
     "ProfilerAdapter",
+    "attach_node_inspect",
     "attach_py_spy",
     "detect_adapters",
     "live_attach_once",

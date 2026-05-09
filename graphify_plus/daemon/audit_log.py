@@ -154,6 +154,47 @@ def by_agent(repo: Path) -> dict[str, int]:
     return dict(rows)
 
 
+def rebuild_from_log(repo: Path) -> dict[str, Any]:
+    """Layer 20.4 — replay the audit log to reconstruct the
+    annotation/correction state. Returns a structured summary the
+    caller can apply against the live store.
+
+    The replay is deterministic: every record is read once in
+    timestamp order, tombstones supersede their target. The output
+    is the full list of annotations/corrections that should exist
+    *now*, suitable for re-application after a cache loss.
+    """
+    records = read_all(repo)
+    records.sort(key=lambda r: r.ts)
+    tombstoned = {r.target for r in records if r.kind == "tombstone"}
+    annotations: list[dict[str, Any]] = []
+    corrections: list[dict[str, Any]] = []
+    ingests: list[dict[str, Any]] = []
+    rebuilds = 0
+    for r in records:
+        if r.kind == "tombstone":
+            continue
+        if r.id in tombstoned:
+            continue
+        if r.kind == "annotation":
+            annotations.append(r.to_dict())
+        elif r.kind == "correction":
+            corrections.append(r.to_dict())
+        elif r.kind == "ingest":
+            ingests.append(r.to_dict())
+        elif r.kind == "rebuild":
+            rebuilds += 1
+    return {
+        "records_read": len(records),
+        "tombstoned": len(tombstoned),
+        "annotations_to_apply": annotations,
+        "corrections_to_apply": corrections,
+        "ingests_seen": ingests,
+        "rebuilds_seen": rebuilds,
+        "log_hash": hash_log(repo),
+    }
+
+
 def hash_log(repo: Path) -> str:
     """Compact deterministic hash of the entire audit log — useful for
     'two engineers on the same SHA see the same graph' (Layer 12.5)
@@ -177,5 +218,6 @@ __all__ = [
     "hash_log",
     "latest_state",
     "read_all",
+    "rebuild_from_log",
     "revert",
 ]

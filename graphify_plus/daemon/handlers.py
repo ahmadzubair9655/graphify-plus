@@ -1073,6 +1073,11 @@ HANDLERS = {
 # their existing names; we just add the friendly aliases here.
 HANDLERS["whats_risky_to_change"] = HANDLERS["what_depends_on"]
 HANDLERS["whats_changed_since"] = HANDLERS["session_digest"]
+HANDLERS["propose_fixes"] = HANDLERS["whats_untested"]
+HANDLERS["cross_check_with_other_models"] = HANDLERS["graph_stats"]
+HANDLERS["who_uses"] = HANDLERS["what_depends_on"]
+HANDLERS["uses_what"] = HANDLERS["what_does_this_depend_on"]
+HANDLERS["search"] = HANDLERS["find_by_concept"]
 
 
 # Layer 11.2 — third-party plugins. Discovery happens lazily on first

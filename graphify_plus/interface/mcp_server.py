@@ -390,6 +390,49 @@ def tool_gpl_query(args: dict[str, Any]) -> dict[str, Any]:
     return _run_intent("gpl_query", args)
 
 
+def tool_pre_edit(args: dict[str, Any]) -> dict[str, Any]:
+    """Run the master plan's 8-step pre-edit ritual (Layer 13.2)."""
+    repo = Path(args.get("repo", ".")).resolve()
+    target = (args.get("target") or args.get("node") or "").strip()
+    if not target:
+        return {"ok": False, "error": {"code": "BAD_REQUEST", "message": "missing 'target'"}}
+    from ..daemon.indexes import InMemoryGraph
+    from ..daemon.session_manager import pre_edit
+    from ..runtime.store import Store, cache_path as _cp
+
+    if not _cp(repo).exists():
+        return {"ok": False, "error": {"code": "NO_GRAPH", "message": "run gp init first"}}
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    rep = pre_edit(snap, target)
+    return {"ok": True, "results": [], "more_available": 0, "extra": {"pre_edit": rep.to_dict()}}
+
+
+def tool_diagnose(args: dict[str, Any]) -> dict[str, Any]:
+    """gp daemon diagnose snapshot (Layer 12.4) — operational status."""
+    from ..daemon.diagnose import diagnose
+
+    repo = Path(args.get("repo", ".")).resolve()
+    return {"ok": True, "results": [], "more_available": 0, "extra": diagnose(repo)}
+
+
+def tool_cross_stack(args: dict[str, Any]) -> dict[str, Any]:
+    """Cross-stack edges (Layer 8 — HTTP + DB + IaC)."""
+    return _run_intent("cross_stack", args)
+
+
+def tool_session_status(args: dict[str, Any]) -> dict[str, Any]:
+    """Layer 13 — is the always-on environment healthy?"""
+    from ..daemon.session_manager import session_status
+
+    repo = Path(args.get("repo", ".")).resolve()
+    state = session_status(repo)
+    return {"ok": True, "results": [], "more_available": 0, "extra": state.__dict__}
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -430,6 +473,13 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_why_does_this_exist": tool_why_does_this_exist,
     # Layer 16 — query language:
     "gp_gpl_query": tool_gpl_query,
+    # Layer 13 — flagship integration:
+    "gp_pre_edit": tool_pre_edit,
+    "gp_session_status": tool_session_status,
+    # Layer 12.4 — diagnose:
+    "gp_diagnose": tool_diagnose,
+    # Layer 8 — cross-stack:
+    "gp_cross_stack": tool_cross_stack,
 }
 
 
@@ -531,4 +581,9 @@ __all__ = [
     "tool_whats_vulnerable",
     "tool_whats_risky",
     "tool_why_does_this_exist",
+    "tool_gpl_query",
+    "tool_pre_edit",
+    "tool_session_status",
+    "tool_diagnose",
+    "tool_cross_stack",
 ]

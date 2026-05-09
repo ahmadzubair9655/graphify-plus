@@ -1098,6 +1098,57 @@ def pre_edit_cmd(target: str, repo: Path, as_json: bool) -> None:
             click.echo(f"  · {n}")
 
 
+@daemon_cmd.command("changelog")
+@click.option("--since", required=True, help="Git ref / tag the changelog starts from.")
+@click.option("--head", default="HEAD")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def changelog_cmd(since: str, head: str, repo: Path, as_json: bool) -> None:
+    """Auto-generate a Markdown changelog from conventional commits."""
+    from ...daemon.changelog import make_changelog, render
+
+    rep = make_changelog(repo.resolve(), since, head)
+    if as_json:
+        click.echo(
+            json.dumps(
+                {
+                    "since_ref": rep.since_ref,
+                    "head_ref": rep.head_ref,
+                    "by_type": {k: [c.__dict__ for c in v] for k, v in rep.by_type.items()},
+                    "other": [c.__dict__ for c in rep.other],
+                },
+                indent=2,
+            )
+        )
+        return
+    click.echo(render(rep))
+
+
+@daemon_cmd.command("audit-rebuild")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def audit_rebuild_cmd(repo: Path, as_json: bool) -> None:
+    """Replay the audit log to rebuild the annotation/correction state (Layer 20.4)."""
+    from ...daemon.audit_log import rebuild_from_log
+
+    out = rebuild_from_log(repo.resolve())
+    if as_json:
+        click.echo(json.dumps(out, indent=2))
+        return
+    click.echo(f"records: {out['records_read']}  tombstoned: {out['tombstoned']}")
+    click.echo(f"annotations to apply: {len(out['annotations_to_apply'])}")
+    click.echo(f"corrections to apply: {len(out['corrections_to_apply'])}")
+    click.echo(f"log hash: {out['log_hash']}")
+
+
 @daemon_cmd.command("benchmark")
 @click.option(
     "--repo",
