@@ -332,6 +332,87 @@ def rules_check_cmd(repo: Path, as_json: bool, fail_on_error: bool) -> None:
         sys.exit(1)
 
 
+@daemon_cmd.command("session-digest")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--since", default="main", help="Git ref the session started from.")
+@click.option("--head", default="HEAD", help="Git ref the session ended at.")
+@click.option("--json", "as_json", is_flag=True)
+def session_digest_cmd(repo: Path, since: str, head: str, as_json: bool) -> None:
+    """End-of-session summary suitable for pasting into a PR description.
+
+    Combines what changed, what rules you bent, what's now untested,
+    and recommended next steps into one Markdown block.
+    """
+    from ...daemon.review import Review, TouchedNode
+    from ...daemon.session_digest import SessionDigest, format_digest
+
+    repo = repo.resolve()
+    payload = _route_intent(repo, "session_digest", {"since": since, "head": head})
+    if "error" in payload:
+        raise click.ClickException(payload["error"]["message"])
+    body = payload.get("extra", {}).get("digest")
+    if not body:
+        raise click.ClickException("session-digest returned no payload")
+    if as_json:
+        click.echo(json.dumps(body, indent=2))
+        return
+    review = None
+    if body.get("review"):
+        rb = body["review"]
+        review = Review(
+            base=rb["base"],
+            head=rb["head"],
+            files_changed=rb["files_changed"],
+            files_renamed=rb["files_renamed"],
+            touched=[TouchedNode(**n) for n in rb["touched"]],
+            untested_touched=[TouchedNode(**n) for n in rb["untested_touched"]],
+            central_touched=[TouchedNode(**n) for n in rb["central_touched"]],
+            rules_violations=list(rb["rules_violations"]),
+            rules_grade=rb["rules_grade"],
+            blast_radius=[TouchedNode(**n) for n in rb["blast_radius"]],
+            summary=rb["summary"],
+        )
+    digest = SessionDigest(
+        repo=body["repo"],
+        since_ref=body["since_ref"],
+        head_ref=body["head_ref"],
+        started_at=body.get("started_at", ""),
+        ended_at=body.get("ended_at", ""),
+        review=review,
+        coverage_overall_pct=body.get("coverage_overall_pct"),
+        next_steps=list(body.get("next_steps", [])),
+        rules_grade=body.get("rules_grade", "A"),
+        rules_violations_count=int(body.get("rules_violations_count", 0)),
+    )
+    click.echo(format_digest(digest))
+
+
+@daemon_cmd.command("diagnose")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def diagnose_cmd(repo: Path, as_json: bool) -> None:
+    """One-screen operational status: daemon, cache, snapshot, coverage,
+    rules, telemetry, process. Designed to answer "is graphify-plus
+    broken?" in a single command.
+    """
+    from ...daemon.diagnose import diagnose, format_diagnose
+
+    repo = repo.resolve()
+    report = diagnose(repo)
+    if as_json:
+        click.echo(json.dumps(report, indent=2))
+        return
+    click.echo(format_diagnose(report))
+
+
 @daemon_cmd.command("onboard")
 @click.option(
     "--repo",

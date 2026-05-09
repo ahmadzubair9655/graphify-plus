@@ -468,6 +468,21 @@ def plan(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     return {"results": [], "more_available": 0, "extra": {"plan": p.to_dict()}}
 
 
+def session_digest(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Post-session digest — Layer 13.3.
+
+    Composes review + coverage + rules into a single end-of-session
+    summary suitable for pasting into a PR description.
+    """
+    from .session_digest import make_digest as _make_digest
+
+    since = (args.get("since") or "main").strip()
+    head = (args.get("head") or "HEAD").strip()
+    diff_text = args.get("diff_text")
+    digest = _make_digest(graph, since=since, head=head, diff_text=diff_text)
+    return {"results": [], "more_available": 0, "extra": {"digest": digest.to_dict()}}
+
+
 def onboard(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     """Onboarding walkthrough — Sprint 10.2.
 
@@ -764,6 +779,8 @@ HANDLERS = {
     "review": review,
     # Sprint 10.2 — onboarding walkthrough:
     "onboard": onboard,
+    # Layer 13.3 — post-session digest:
+    "session_digest": session_digest,
     "graph_stats": graph_stats,
 }
 

@@ -365,6 +365,11 @@ def tool_onboard(args: dict[str, Any]) -> dict[str, Any]:
     return _run_intent("onboard", args)
 
 
+def tool_session_digest(args: dict[str, Any]) -> dict[str, Any]:
+    """End-of-session summary: review + coverage + rules + next steps."""
+    return _run_intent("session_digest", args)
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -396,6 +401,8 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_review": tool_review,
     # Sprint 10.2 — onboarding walkthrough:
     "gp_onboard": tool_onboard,
+    # Layer 13.3 — post-session digest:
+    "gp_session_digest": tool_session_digest,
 }
 
 
@@ -493,4 +500,5 @@ __all__ = [
     "tool_rules_check",
     "tool_review",
     "tool_onboard",
+    "tool_session_digest",
 ]
