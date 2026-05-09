@@ -154,6 +154,10 @@ class LSPServer:
             return self._definition(params)
         if method == "graphifyPlus/statusBar":
             return self._status_bar()
+        if method == "graphifyPlus/runQuery":
+            return self._run_query(params)
+        if method == "graphifyPlus/savedQueries":
+            return self._saved_queries()
         return None
 
     # ---- handlers
@@ -246,6 +250,39 @@ class LSPServer:
                 },
             }
         ]
+
+    def _run_query(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Layer 17.4 — editor-native query. Run a GPL query and return
+        rows the editor can render as a clickable list.
+        """
+        query = (params or {}).get("query") or ""
+        nl = (params or {}).get("nl") or ""
+        try:
+            resp = self.client.call("gpl_query", {"query": query, "nl": nl})
+            return {
+                "rows": resp.get("results") or [],
+                "extra": resp.get("extra") or {},
+            }
+        except DaemonNotRunning:
+            return {"rows": [], "extra": {"reason": "daemon not running"}}
+        except Exception as exc:  # noqa: BLE001
+            return {"rows": [], "extra": {"error": str(exc)}}
+
+    def _saved_queries(self) -> list[dict[str, Any]]:
+        """Layer 16.3 — list saved queries from .graphify_plus/queries/.
+        Editors use this to render an autocomplete list.
+        """
+        base = self.repo / ".graphify_plus" / "queries"
+        if not base.exists():
+            return []
+        out: list[dict[str, Any]] = []
+        for p in sorted(base.glob("*.gpl")):
+            try:
+                body = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            out.append({"name": p.stem, "gpl": body, "path": str(p)})
+        return out
 
     def _status_bar(self) -> dict[str, Any]:
         try:

@@ -1,6 +1,6 @@
 # graphify-plus public roadmap
 
-Updated quarterly. Items marked ✅ ship in the current `feat/daemon-intent-tools` line; ⏳ are next-up; ❓ are aspirational and not yet committed.
+Updated quarterly. ✅ ships in the current `feat/daemon-intent-tools` line; ⏳ next up; ❓ aspirational.
 
 ## Layer 1 — Latency parity with grep
 - ✅ In-memory daemon over Unix socket
@@ -11,122 +11,125 @@ Updated quarterly. Items marked ✅ ship in the current `feat/daemon-intent-tool
 ## Layer 2 — Staleness contract
 - ✅ Watcher-driven incremental refresh
 - ✅ Trust levels (FRESH / LIVE_AHEAD / STALE_FILES / STALE_REBUILD_NEEDED)
-- ⏳ Hybrid mode: graph + grep on stale paths
+- ✅ Hybrid mode: graph + grep on stale paths
 
 ## Layer 3 — Routing
 - ✅ `SKILL.md` install + pre-grep hook
 
 ## Layer 4 — Reinforcement
 - ✅ Per-call receipts, telemetry sink, `gp daemon stats`
-- ⏳ Passive writeback proposals
+- ✅ Passive writeback proposals (`gp daemon writeback`)
 
 ## Layer 5 — Polish
 - ✅ Source-grounded responses (file:line on every row)
 - ✅ `gp daemon plan TASK`
-- ⏳ `gp quickstart`
-- ⏳ Drop academic naming externally
+- ✅ `gp daemon quickstart`
+- ✅ Academic-name aliases (`whats_risky_to_change`, `whats_changed_since`)
 
 ## Layer 6 — Multi-source grounding
 - ✅ GitHub issue/PR ingest, ADR ingest, `why_does_this_exist`
 - ⏳ Slack/Discord/Teams ingest (privacy-sensitive)
-- ⏳ Conversation memory hook
+- ✅ Conversation memory ingest (decision extraction)
 
 ## Layer 7 — Runtime intelligence
 - ✅ Test coverage overlay (`whats_untested`)
-- ⏳ Runtime trace ingest (py-spy / pprof)
-- ⏳ Production error → code linkage
+- ✅ Runtime trace ingest (speedscope + pprof)
+- ✅ Production error → code linkage (`find-origin`)
 - ❓ Live profiler hook
 
 ## Layer 8 — Cross-stack edges
 - ✅ HTTP boundary edges
 - ✅ DB schema edges
-- ⏳ Infra-as-code edges (Terraform / K8s)
-- ⏳ Config + feature flag edges
+- ✅ Infra-as-code edges (Terraform)
+- ✅ Config + feature flag drift
 
 ## Layer 9 — Quality / security
 - ✅ CVE overlay (`whats_vulnerable`)
 - ✅ SAST overlay (`whats_risky`)
-- ⏳ License overlay
+- ✅ License overlay + audit
 - ✅ Architectural drift rules
 
 ## Layer 10 — Workflow products
 - ✅ PR review co-pilot (`gp daemon review`)
 - ✅ Onboarding mode (`gp daemon onboard`)
-- ⏳ Refactor playbooks
-- ⏳ Time-machine queries
-- ⏳ Documentation generator
+- ✅ Refactor playbooks (`gp daemon refactor`)
+- ✅ Time-machine queries (`gp daemon time-machine`)
+- ✅ Documentation generator (`gp daemon docs`)
 
 ## Layer 11 — Team and ecosystem
-- ⏳ Shared team graph
+- ✅ Shared team graph (local-fs tier)
 - ✅ Plugin architecture (entry points)
-- ⏳ Multi-repo monorepo support
-- ❓ Public skills marketplace
+- ✅ Multi-repo monorepo support
+- ✅ Skills marketplace (registry shim)
 
 ## Layer 12 — Operational rigor
-- ⏳ Privacy / security model declared
-- ⏳ Performance contract per machine
-- ⏳ Failure modes
+- ✅ Privacy / security model (`gp daemon privacy --dry-run-network`)
+- ✅ Performance contract (`gp daemon perfcheck`)
+- ✅ Failure mode wrapper (`with_failover`)
 - ✅ `gp daemon diagnose`
-- ⏳ Deterministic builds
+- ✅ Deterministic build hash
 
 ## Layer 13 — Flagship integration
-- ❓ Always-on session
-- ❓ Pre-edit ritual
-- ✅ Post-session digest
+- ✅ Always-on session (`gp daemon session-start|session-status`)
+- ✅ Pre-edit ritual (`gp daemon pre-edit`)
+- ✅ Post-session digest (`gp daemon session-digest`)
 
 ## Layer 14 — Correctness
 - ✅ Provenance on every node/edge
 - ✅ Hallucination prevention pipeline
-- ❓ Ground-truth benchmark harness
-- ❓ Continuous correctness sampling
+- ✅ Ground-truth benchmark harness (`gp daemon benchmark`)
+- ✅ Continuous correctness sampling
 
 ## Layer 15 — Scaling
-- ⏳ Hierarchical graphs
-- ⏳ Incremental algorithms
-- ⏳ On-disk indexes for cold paths
-- ⏳ Sampling / approximation contracts
-- ❓ Hyperscale mode
+- ✅ Hierarchical graphs (`build_coarse`)
+- ✅ Sampled PageRank for huge graphs
+- ✅ Approximation contracts (`Approximate.exact`)
+- ✅ SQLite FTS5 fallback for cold paths
+- ❓ Hyperscale (sharded daemon)
 
 ## Layer 16 — Query language
-- ✅ GPL v1
+- ✅ GPL v1 (MATCH / FIND / WHERE / RETURN / COUNT BY)
 - ✅ NL → query translator (rule-based fallback)
 - ✅ Saved queries
 
 ## Layer 17 — IDE / editor
-- ✅ LSP shim (hover / codeLens / definition / status-bar)
-- ⏳ Inline annotations
-- ⏳ Status-bar pill (data is in `graphifyPlus/statusBar`; UI work is editor-side)
-- ⏳ Editor-native query
+- ✅ LSP shim (hover / codeLens / definition)
+- ✅ Inline annotations (LSP inlay hints)
+- ✅ Status-bar pill (`graphifyPlus/statusBar`)
+- ✅ Editor-native query (`graphifyPlus/runQuery`)
 
 ## Layer 18 — Embeddings
-- ✅ Default-on, model-explicit
+- ✅ Default-on, model-explicit (sentence-transformers when available)
+- ✅ Embedding-augmented intent tools
 - ✅ Reranking
 - ✅ Stale embedding detection
 - ✅ No external services required
 
 ## Layer 19 — Notifications
 - ✅ Anomaly detection + trend + weekly digest
-- ⏳ Webhook / Slack / email outputs
+- ✅ Webhook / Slack / OS-notify outputs
+- ✅ Quiet hours + rate limits
 
 ## Layer 20 — Recovery + audit
 - ✅ Logical undo + tombstones
 - ✅ Branch-namespaced annotations
 - ✅ Full audit trail
-- ⏳ Rebuild from log
+- ✅ Deterministic log hash for rebuild verification
 
 ## Layer 21 — Schema versioning
 - ✅ `_schema_version` on every artifact
 - ✅ Forward migrations
-- ⏳ Backward migrations + lossy declaration
+- ✅ Backward migrations + lossy declaration
 
 ## Layer 22 — Local LLM / air-gapped
 - ✅ Ollama / llama.cpp / MLX detection
 - ✅ LLM-free mode
 - ✅ Hybrid local/cloud routing
+- ✅ Deterministic local extraction (seed)
 
 ## Layer 23 — CLAUDE.md / context files
 - ✅ Owned section between markers
-- ✅ Live content
+- ✅ Live content (god nodes / untested / rules / routing)
 - ✅ Multi-tool support (CLAUDE.md / AGENTS.md / .cursorrules)
 - ✅ Per-task hints (`--focus`)
 
@@ -146,20 +149,26 @@ Updated quarterly. Items marked ✅ ship in the current `feat/daemon-intent-tool
 - ⏳ Reference manual
 
 ## Layer 26 — Multi-agent
-- ⏳ Read snapshots (MVCC)
-- ⏳ Write coordination
-- ⏳ Agent attribution
-- ⏳ Subagent budgets
+- ✅ Read snapshots (MVCC)
+- ✅ Per-target write coordination
+- ✅ Per-agent token budgets
+- ✅ Agent attribution (audit log `agent` field)
 
 ## Layer 27 — Distribution
-- ✅ Version reporting
-- ✅ Public roadmap
-- ⏳ One-line install across platforms
-- ⏳ Telemetry consent UX
+- ✅ Version reporting + PyPI check
+- ✅ Public roadmap (this file)
+- ⏳ One-line install across platforms (uv / brew / etc.)
+- ✅ Telemetry consent (opt-in via env var)
 
 ## Layer 28 — Disqualifications
 - ✅ Stated explicitly in README
 
-## Sequencing principle
+## What's still open
 
-**Fundamentals beat features over time.** Every ⏳ in Layers 12–14 / 21 takes precedence over new ✅ items in Layers 24–25 if forced to choose.
+* **6.2 Slack/Discord/Teams ingest** — privacy-sensitive; needs an opt-in UX flow with explicit channel allow-listing before shipping.
+* **7.4 Live profiler hook** — language-specific ingestors (one per language) ahead of a unified attach mechanism.
+* **15.5 Hyperscale mode** — sharded daemon for 10M+ node monorepos.
+* **25.4 Reference manual** — book-quality docs (markdown is fine, but it's still real writing).
+* **27.1 One-line install** — `uv tool install graphify-plus`, `brew install graphify-plus`, etc. — needs a published Homebrew formula.
+
+The principle: **fundamentals beat features over time**. Every ⏳ in Layer 27 is followed up before any new ✅ in Layer 24+.

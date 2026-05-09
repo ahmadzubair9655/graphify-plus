@@ -395,8 +395,18 @@ def find_by_name(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
         else:
             confidence = 0.6
         rows.append(_format_node(s, confidence=confidence))
+    # Layer 2.3 — hybrid grep fallback: when files are stale, augment
+    # with one-shot grep hits in those files so the response stays
+    # useful even if the graph is behind. This is the master plan's
+    # killer feature — graph subsumes grep when stale.
+    from .hybrid_grep import maybe_augment
+
+    rows, hybrid_info = maybe_augment(graph, rows, pattern=label)
     kept, more = _budget_clip(rows, budget)
-    return {"results": kept, "more_available": more}
+    extra: dict[str, Any] = {}
+    if hybrid_info.get("n_grep_hits"):
+        extra["hybrid"] = hybrid_info
+    return {"results": kept, "more_available": more, "extra": extra}
 
 
 def find_by_concept(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
@@ -1056,6 +1066,13 @@ HANDLERS = {
     "gpl_query": gpl_query,
     "graph_stats": graph_stats,
 }
+
+
+# Layer 5.4 — academic-name aliases. External-facing tools should be
+# verbs and questions, not nouns from a paper. Internal modules keep
+# their existing names; we just add the friendly aliases here.
+HANDLERS["whats_risky_to_change"] = HANDLERS["what_depends_on"]
+HANDLERS["whats_changed_since"] = HANDLERS["session_digest"]
 
 
 # Layer 11.2 — third-party plugins. Discovery happens lazily on first
