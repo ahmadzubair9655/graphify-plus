@@ -488,6 +488,133 @@ def plugin_list_cmd(as_json: bool) -> None:
             click.echo(f"    - {k}")
 
 
+@daemon_cmd.command("tutorial")
+@click.option("--json", "as_json", is_flag=True)
+def tutorial_cmd(as_json: bool) -> None:
+    """Print the 10-question graph-vs-grep tutorial (Layer 25)."""
+    from ...daemon.tutorial import TUTORIAL_STEPS, render_tutorial
+
+    if as_json:
+        click.echo(json.dumps([s.__dict__ for s in TUTORIAL_STEPS], indent=2))
+        return
+    click.echo(render_tutorial())
+
+
+@daemon_cmd.command("recipes")
+@click.option("--install", is_flag=True, help="Install recipes into .graphify_plus/queries/.")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def recipes_cmd(install: bool, repo: Path, as_json: bool) -> None:
+    """Show / install graphify-plus recipes (Layer 25)."""
+    from ...daemon.tutorial import RECIPES, install_recipes, render_recipes
+
+    if install:
+        out = install_recipes(repo)
+        for p in out:
+            click.echo(f"installed: {p}")
+        return
+    if as_json:
+        click.echo(json.dumps([r.__dict__ for r in RECIPES], indent=2))
+        return
+    click.echo(render_recipes())
+
+
+@daemon_cmd.command("local-llm")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True)
+def local_llm_cmd(repo: Path, as_json: bool) -> None:
+    """Probe local LLM backends + show routing (Layer 22)."""
+    from ...daemon.local_llm import detect_backends, load_routing
+
+    backends = detect_backends()
+    routing = load_routing(repo.resolve())
+    if as_json:
+        click.echo(
+            json.dumps(
+                {
+                    "backends": [b.__dict__ for b in backends],
+                    "routing": {
+                        "default": routing.default,
+                        "rules": [r.__dict__ for r in routing.rules],
+                        "llm_free": routing.llm_free,
+                    },
+                },
+                indent=2,
+            )
+        )
+        return
+    for b in backends:
+        status = "✓" if b.available else "✗"
+        click.echo(f"  {status} {b.name:<10} {b.url or '(unconfigured)'}  {b.reason}")
+    click.echo("")
+    click.echo(f"routing.default={routing.default}, llm_free={routing.llm_free}")
+    for r in routing.rules:
+        click.echo(f"  {r.pattern} → {r.backend}")
+
+
+@daemon_cmd.command("ingest-long-tail")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option(
+    "--kinds", default="", help="Comma-separated subset (jupyter,openapi,k8s,…)."
+)
+def ingest_long_tail_cmd(repo: Path, kinds: str) -> None:
+    """Ingest long-tail external sources (Layer 24)."""
+    from ...daemon.long_tail_ingestors import ingest_long_tail
+    from ...runtime.store import Store, cache_path as _cp
+
+    repo = repo.resolve()
+    if not _cp(repo).exists():
+        raise click.ClickException(f"no graph cache; run `gp init`")
+    kinds_list = [k.strip() for k in kinds.split(",") if k.strip()] or None
+    store = Store(_cp(repo))
+    try:
+        summary = ingest_long_tail(store, repo, kinds=kinds_list)
+    finally:
+        store.close()
+    if not summary:
+        click.echo("nothing ingested (no matching files found)")
+        return
+    for k, n in summary.items():
+        click.echo(f"  {k:<12} {n}")
+
+
+@daemon_cmd.command("version-check")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+def version_check_cmd(repo: Path) -> None:
+    """Check PyPI for a newer release (Layer 27)."""
+    from graphify_plus import __version__
+    from ...daemon.distribution import version_check
+
+    info = version_check(repo.resolve(), __version__)
+    if info.error == "disabled":
+        click.echo("update check disabled (GP_NO_UPDATE_CHECK=1)")
+        return
+    click.echo(f"current: {info.current}")
+    click.echo(f"latest:  {info.latest or '(unknown)'}")
+    if info.update_available:
+        click.echo(f"update available — `pip install -U graphify-plus`")
+    elif info.error:
+        click.echo(f"check failed: {info.error}")
+    else:
+        click.echo("up-to-date")
+
+
 @daemon_cmd.command("trend")
 @click.option(
     "--repo",
