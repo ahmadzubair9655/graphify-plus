@@ -296,6 +296,27 @@ def whats_central(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     return {"results": kept, "more_available": more}
 
 
+def plan(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
+    """Graph-grounded edit plan for a natural-language task description.
+
+    Wraps :func:`graphify_plus.daemon.planner.make_plan` so the same
+    deterministic pipeline is reachable from the daemon, the CLI, and
+    MCP. Returns the plan as the ``extra`` payload — not as ``results``
+    — because the plan is a structured object, not a list of nodes.
+    """
+    from .planner import make_plan as _make_plan
+
+    task = (args.get("task") or args.get("query") or "").strip()
+    if not task:
+        return {
+            "results": [],
+            "more_available": 0,
+            "extra": {"reason": "no task given"},
+        }
+    p = _make_plan(graph, task, top_k=int(args.get("top_k", 12)))
+    return {"results": [], "more_available": 0, "extra": {"plan": p.to_dict()}}
+
+
 def graph_stats(graph: InMemoryGraph, args: dict[str, Any]) -> dict[str, Any]:
     """Summary stats — used by ``gp daemon status`` and tests."""
     stats = graph.stats
@@ -443,6 +464,7 @@ HANDLERS = {
     "find_by_name": find_by_name,
     "find_by_concept": find_by_concept,
     "whats_central": whats_central,
+    "plan": plan,
     "graph_stats": graph_stats,
 }
 

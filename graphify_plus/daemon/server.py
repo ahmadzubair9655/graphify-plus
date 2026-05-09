@@ -42,6 +42,7 @@ from .protocol import (
     socket_path,
 )
 from .receipts import make_receipt
+from .telemetry import append_event as telemetry_append
 
 log = logging.getLogger("graphify_plus.daemon.server")
 
@@ -378,10 +379,11 @@ class DaemonServer:
 
         results = payload.get("results", []) or []
         receipt = make_receipt(op, elapsed_ms, results, len(results))
+        freshness = self._freshness()
         response: dict[str, Any] = {
             "request_id": request_id,
             "ok": True,
-            "freshness": self._freshness(),
+            "freshness": freshness,
             "receipt": receipt,
             "results": results,
             "more_available": payload.get("more_available", 0),
@@ -389,6 +391,15 @@ class DaemonServer:
         if "extra" in payload:
             response["extra"] = payload["extra"]
         self._send(fp, response)
+        telemetry_append(
+            self.repo_root,
+            op,
+            elapsed_ms=receipt.get("elapsed_ms", 0.0),
+            tokens=receipt.get("tokens", 0),
+            n_results=len(results),
+            trust=freshness.get("trust", "?"),
+            ok=True,
+        )
 
     def _freshness(self) -> dict[str, Any]:
         with self._snapshot_lock:
@@ -417,14 +428,25 @@ class DaemonServer:
         err: dict[str, Any] = {"code": code, "message": message}
         if detail:
             err["detail"] = detail
+        freshness = self._freshness()
         self._send(
             fp,
             {
                 "request_id": request_id,
                 "ok": False,
                 "error": err,
-                "freshness": self._freshness(),
+                "freshness": freshness,
             },
+        )
+        telemetry_append(
+            self.repo_root,
+            "error",
+            elapsed_ms=0.0,
+            tokens=0,
+            n_results=0,
+            trust=freshness.get("trust", "?"),
+            ok=False,
+            error_code=code,
         )
 
 

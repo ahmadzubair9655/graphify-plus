@@ -167,6 +167,113 @@ def refresh_cmd(repo: Path) -> None:
     )
 
 
+@daemon_cmd.command("plan")
+@click.argument("task")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+@click.option("--top-k", default=12, type=int, help="Number of affected-node candidates.")
+def plan_cmd(task: str, repo: Path, as_json: bool, top_k: int) -> None:
+    """Graph-grounded edit plan for a natural-language TASK description.
+
+    Routes through the running daemon when available; falls back to a
+    direct in-process build otherwise. Output is a Markdown report
+    with affected nodes (with file:line), blast radius, risk grade, and
+    a graph-vs-grep token-cost estimate.
+    """
+    from ...daemon.planner import Plan, PlanNode, format_plan
+
+    repo = repo.resolve()
+    client = DaemonClient(repo)
+    payload: dict[str, Any] | None = None
+    if client.is_running():
+        try:
+            resp = client.call("plan", {"task": task, "top_k": top_k})
+            payload = resp.get("extra", {}).get("plan")
+        except DaemonError as exc:
+            raise click.ClickException(f"{exc.code}: {exc}") from exc
+    if payload is None:
+        # Direct fallback.
+        from ...daemon.handlers import plan as plan_handler
+        from ...daemon.indexes import InMemoryGraph
+        from ...runtime.store import Store, cache_path as _cache_path
+
+        store = Store(_cache_path(repo))
+        try:
+            snap = InMemoryGraph.from_store(store, repo)
+        finally:
+            store.close()
+        result = plan_handler(snap, {"task": task, "top_k": top_k})
+        payload = result.get("extra", {}).get("plan")
+    if not payload:
+        raise click.ClickException("plan generation returned no payload")
+
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    plan_obj = Plan(
+        task=payload.get("task", task),
+        affected=[PlanNode(**n) for n in payload.get("affected", [])],
+        blast_radius=[PlanNode(**n) for n in payload.get("blast_radius", [])],
+        risk=payload.get("risk", "LOW"),
+        risk_reasons=list(payload.get("risk_reasons", [])),
+        estimated_tokens_graph=int(payload.get("estimated_tokens_graph", 0)),
+        estimated_tokens_grep=int(payload.get("estimated_tokens_grep", 0)),
+        notes=list(payload.get("notes", [])),
+    )
+    click.echo(format_plan(plan_obj))
+
+
+@daemon_cmd.command("stats")
+@click.option(
+    "--repo",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def stats_cmd(repo: Path, as_json: bool) -> None:
+    """Show local telemetry: per-op call counts, P50/P95 latency, FRESH rate.
+
+    Reads ``<repo>/.graphify_plus/telemetry.jsonl`` — written by the
+    daemon on every successful call. Local-only by default; the existing
+    ``GRAPHIFY_TELEMETRY_URL`` exporter handles outbound emissions.
+    """
+    from ...daemon.telemetry import aggregate
+
+    repo = repo.resolve()
+    summary = aggregate(repo)
+    if as_json:
+        click.echo(json.dumps(summary, indent=2))
+        return
+    if summary["total_calls"] == 0:
+        click.echo("no telemetry yet — run a few `gp daemon query …` calls first")
+        return
+    click.echo(f"daemon stats ({repo})")
+    click.echo(f"  total calls : {summary['total_calls']}")
+    click.echo(f"  ok rate     : {summary['ok_rate']:.1%}")
+    click.echo(f"  FRESH rate  : {summary['fresh_rate']:.1%}")
+    click.echo("")
+    click.echo("  per-op:")
+    for op, info in sorted(
+        summary["by_op"].items(), key=lambda kv: -int(kv[1]["calls"])
+    ):
+        click.echo(
+            f"    {op:<24} calls={info['calls']:>5}  "
+            f"p50={info['p50_ms']}ms  p95={info['p95_ms']}ms  "
+            f"FRESH={info['fresh_rate']:.0%}  "
+            f"avg_results={info['avg_results']}"
+        )
+    if "top_errors" in summary:
+        click.echo("")
+        click.echo("  top errors:")
+        for code, n in summary["top_errors"]:
+            click.echo(f"    {code:<24} {n}")
+
+
 @daemon_cmd.command("install")
 @click.option(
     "--repo",

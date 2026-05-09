@@ -330,6 +330,11 @@ def tool_whats_central(args: dict[str, Any]) -> dict[str, Any]:
     return _run_intent("whats_central", args)
 
 
+def tool_plan(args: dict[str, Any]) -> dict[str, Any]:
+    """Graph-grounded edit plan for a natural-language task description."""
+    return _run_intent("plan", args)
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -350,6 +355,7 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_find_by_name": tool_find_by_name,
     "gp_find_by_concept": tool_find_by_concept,
     "gp_whats_central": tool_whats_central,
+    "gp_plan": tool_plan,
 }
 
 
@@ -440,4 +446,5 @@ __all__ = [
     "tool_find_by_name",
     "tool_find_by_concept",
     "tool_whats_central",
+    "tool_plan",
 ]

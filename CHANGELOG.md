@@ -41,6 +41,24 @@ All notable changes to graphify-plus.
   Claude sees the in-context win for using the graph
   (`[graphify-plus] who_calls · 0.05ms · 38 tokens · would have taken
   ~3 grep calls + 1 file reads`).
+- **Local telemetry sink + `gp daemon stats`** (`graphify_plus/daemon/telemetry.py`).
+  Every daemon dispatch appends a JSON line to
+  `<repo>/.graphify_plus/telemetry.jsonl` recording
+  `{ts, op, elapsed_ms, tokens, n_results, trust, ok}`. The new
+  `gp daemon stats` command aggregates that log into per-op call counts,
+  P50/P95 latency, FRESH rate, total tokens, and a top-errors list — the
+  master plan's adoption metric. Local-only by default; the existing
+  `GRAPHIFY_TELEMETRY_URL` exporter still handles outbound emissions.
+- **Graph-grounded plan command** (`gp daemon plan TASK`,
+  `graphify_plus/daemon/planner.py`). Deterministic, offline,
+  LLM-free pipeline: `find_by_concept` → `what_depends_on` → risk
+  scoring (PageRank-touched + high-degree dependents + blast-radius
+  size) → token-cost comparison vs grep-only research. Outputs a
+  Markdown report with affected nodes (file:line), blast radius, risk
+  grade, and "start with" guidance. Also exposed as the `plan` daemon
+  op and `gp_plan` MCP tool. Smoke test on the 1375-symbol
+  graphify-plus repo: 1,581 graph tokens vs ~19,700 grep-only tokens
+  for "add rate limiting to all REST endpoints".
 - **Watcher-driven incremental refresh** (`graphify_plus/daemon/server.py`).
   The daemon embeds the existing `runtime.watcher.Watcher` and subscribes a
   signal-and-coalesce callback that triggers a snapshot rebuild whenever a
