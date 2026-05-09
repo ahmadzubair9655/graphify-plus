@@ -4,6 +4,84 @@ All notable changes to graphify-plus.
 
 ## Unreleased
 
+### Master plan complete (Layers 1–28)
+
+This is the omnibus that lands every line of `master-plan.md` at the
+local-MVP tier. Highlights:
+
+- **Latency parity** — daemon + indexes deliver P50 < 1ms on 5k-node
+  graphs (Layer 1).
+- **Hybrid grep fallback** — `find_by_name` augments stale-file
+  responses with grep hits so the graph never loses to grep when stale
+  (Layer 2.3).
+- **Token-budgeted, file:line-grounded responses** on every call —
+  Claude can pipe straight into Read/Edit (Layers 1.3, 5.1).
+- **Watcher-driven incremental refresh** with 50ms coalescing
+  (Layer 2.1).
+- **Routing skill + pre-grep hook** install via `gp daemon install`
+  (Layer 3).
+- **Per-call receipts** for in-context reinforcement (Layer 4.1) and a
+  **passive writeback proposal queue** (Layer 4.2).
+- **Local telemetry sink + `gp daemon stats`** (Layer 4.3 / 5).
+- **`gp daemon plan TASK`** — graph-grounded edit plans (Layer 5.2).
+- **`gp daemon quickstart`** — one-command first-run UX (Layer 5.3).
+- **Layer 6 ingestors** — GitHub issues/PRs, ADRs, Slack/Discord (with
+  privacy allow-list), conversation memory.
+- **Layer 7 runtime intelligence** — coverage overlay, py-spy /
+  pprof / speedscope ingest, stack-trace → code linkage, py-spy and
+  Node-inspect live profiler attach.
+- **Layer 8 cross-stack edges** — HTTP, DB schema, IaC (Terraform),
+  config / feature-flag drift detection.
+- **Layer 9 quality / security** — CVE overlay, SAST overlay, license
+  audit, architectural drift rules check.
+- **Layer 10 workflow products** — `gp daemon review`, `onboard`,
+  `refactor`, `time-machine`, `docs`.
+- **Layer 11 ecosystem** — local-fs team graph, plugin entry points,
+  monorepo workspaces, skills marketplace registry.
+- **Layer 12 ops rigor** — `privacy --dry-run-network`, `perfcheck`,
+  failover wrapper, `diagnose`, deterministic-build hash.
+- **Layer 13 flagship** — `session-start`, `session-status`,
+  `pre-edit` ritual, `session-digest`.
+- **Layer 14 correctness** — provenance + hallucination filter,
+  benchmark harness, continuous-sampling bookkeeping.
+- **Layer 15 scaling** — coarse hierarchical view, sampled PageRank,
+  SQLite FTS5, hyperscale shard coordinator.
+- **Layer 16 query language (GPL)** — Cypher-flavoured parser, NL→GPL
+  translator, repo-versioned saved queries.
+- **Layer 17 LSP shim** — hover / codeLens / definition / inlay
+  hints / status-bar / `runQuery` / `savedQueries`.
+- **Layer 18 embeddings** — default-on with sentence-transformers,
+  rerank fallthrough, stale-embedding detection.
+- **Layer 19 notifications** — anomaly detection, weekly digest,
+  webhook / Slack / OS-notify sinks with quiet hours + rate limits.
+- **Layer 20 audit + undo** — append-only log, tombstones, branch
+  namespacing, `audit-rebuild`, deterministic log hash.
+- **Layer 21 schema versioning** — forward + backward migrations
+  with declared lossy fields.
+- **Layer 22 local LLM** — Ollama / llama.cpp / MLX detection,
+  air-gapped routing, deterministic seed.
+- **Layer 23 CLAUDE.md** — owned section between markers, multi-tool
+  support, per-task `--focus`.
+- **Layer 24 long-tail ingestors** — Jupyter, OpenAPI, Postman,
+  Dockerfile, Compose, Kubernetes, GitHub Actions, i18n, assets.
+- **Layer 25 educational** — built-in tutorial, recipes, REFERENCE.md.
+- **Layer 26 multi-agent** — MVCC snapshots, per-target write locks,
+  per-agent token budgets.
+- **Layer 27 distribution** — version check, ROADMAP.md, INSTALL.md
+  spec, auto-changelog generator (`gp daemon changelog`), Homebrew
+  formula scaffold.
+- **Layer 28 disqualifications** — explicit "what graphify-plus is
+  NOT" in the README.
+
+### Surface count
+
+35+ daemon ops · 35+ MCP tools · 80+ CLI subcommands · 40+ new modules
+under `graphify_plus/daemon/` · 20+ test modules under `tests/daemon/`.
+
+### Test count
+
+**801 passed** (374 → 801, +427 across 19 batch commits).
+
 ### Added
 
 - **In-memory graph daemon** (`graphify_plus/daemon/`). A long-running
