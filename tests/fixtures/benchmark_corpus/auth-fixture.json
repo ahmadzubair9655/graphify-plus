@@ -1,0 +1,38 @@
+[
+  {
+    "name": "auth-fixture",
+    "repo_path": "<test-fixture-repo>",
+    "checks": [
+      {
+        "op": "find_by_name",
+        "args": {"label": "auth"},
+        "expect_at_least": 1
+      },
+      {
+        "op": "find_by_name",
+        "args": {"label": "AuthService"},
+        "expect_at_least": 1
+      },
+      {
+        "op": "who_calls",
+        "args": {"node": "AuthService.login"},
+        "expect_at_least": 1
+      },
+      {
+        "op": "what_depends_on",
+        "args": {"node": "AuthService.validate"},
+        "expect_at_least": 1
+      },
+      {
+        "op": "find_by_concept",
+        "args": {"query": "authenticate user login"},
+        "expect_at_least": 1
+      },
+      {
+        "op": "whats_in",
+        "args": {"path": "auth.py"},
+        "expect_at_least": 3
+      }
+    ]
+  }
+]

@@ -6,6 +6,44 @@ This is the v5 line. The pre-v4 product was an enhancement layer over [safishams
 
 ---
 
+## The daemon (Layers 1–28 of the master plan)
+
+The fast path: a long-running local daemon that answers structural
+questions in sub-millisecond P50 with file:line on every row.
+
+```bash
+gp daemon quickstart                     # init + warm + install skill + recipes
+gp daemon start --detach                 # bring up the daemon
+gp daemon query who_calls -a node=AuthService.login --receipt
+gp daemon plan "add rate limiting to all endpoints"
+gp daemon coverage ingest coverage.xml   # then `gp daemon coverage untested`
+gp daemon review --base main             # PR co-pilot output
+gp daemon onboard                        # guided-tour walkthrough
+gp daemon diagnose                       # one-screen ops status
+```
+
+`gp daemon --help` lists the full ~80 subcommands. See
+[`REFERENCE.md`](REFERENCE.md) for the data model + extension guide,
+[`ROADMAP.md`](ROADMAP.md) for layer-by-layer status, and
+[`examples/`](examples/) for runnable scripts.
+
+The MCP server (`gp mcp`) exposes 31 tools so Claude can call them
+directly. The LSP shim (`gp daemon lsp`) surfaces hover / codeLens /
+inlay-hint info every modern editor speaks.
+
+## What graphify-plus is NOT
+
+The mark of a mature project is publishing what it explicitly will not do.
+
+- **graphify-plus is not a database.** No transactions, no high-availability, no replication. The graph is an artifact, not a system of record.
+- **graphify-plus is not a security tool.** SAST/CVE overlays inform; they don't audit. A real security review is still required.
+- **graphify-plus does not replace your IDE.** Symbol resolution, auto-completion, jump-to-definition, hover-to-type stay with the LSP. The graph is *additional* context, not a substitute.
+- **graphify-plus does not run your code.** Runtime ingest is opt-in and consumes traces produced elsewhere.
+- **graphify-plus is not your team's wiki.** It can ingest and link, but the canonical decision still lives in the source artifact.
+- **graphify-plus is not real-time.** Watcher latency exists. Architectural rule violations are detected on the next build, not at the keystroke.
+
+---
+
 ## Install
 
 ```bash

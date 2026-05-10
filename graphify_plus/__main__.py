@@ -26,6 +26,7 @@ Subcommands:
   explain        — explain a node/edge
   vacuum         — compact stores
   serve          — run REST/web server
+  daemon         — manage in-memory graph daemon (start/stop/status/query)
   audit          — adversarial audit on graph.json
   diff           — diff two graph snapshots
 
@@ -319,6 +320,18 @@ def _dispatch(cmd: str, rest: list[str]) -> int:
 
         try:
             serve_cmd.main(args=rest, prog_name="graphify-plus serve", standalone_mode=False)
+        except SystemExit as e:
+            return int(e.code or 0)
+        except click.ClickException as e:
+            e.show()
+            return 1
+        return 0
+
+    if cmd == "daemon":
+        from graphify_plus.interface.cli.daemon_cmd import daemon_cmd
+
+        try:
+            daemon_cmd.main(args=rest, prog_name="graphify-plus daemon", standalone_mode=False)
         except SystemExit as e:
             return int(e.code or 0)
         except click.ClickException as e:

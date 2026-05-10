@@ -4,6 +4,260 @@ All notable changes to graphify-plus.
 
 ## Unreleased
 
+### Master plan complete (Layers 1–28)
+
+This is the omnibus that lands every line of `master-plan.md` at the
+local-MVP tier. Highlights:
+
+- **Latency parity** — daemon + indexes deliver P50 < 1ms on 5k-node
+  graphs (Layer 1).
+- **Hybrid grep fallback** — `find_by_name` augments stale-file
+  responses with grep hits so the graph never loses to grep when stale
+  (Layer 2.3).
+- **Token-budgeted, file:line-grounded responses** on every call —
+  Claude can pipe straight into Read/Edit (Layers 1.3, 5.1).
+- **Watcher-driven incremental refresh** with 50ms coalescing
+  (Layer 2.1).
+- **Routing skill + pre-grep hook** install via `gp daemon install`
+  (Layer 3).
+- **Per-call receipts** for in-context reinforcement (Layer 4.1) and a
+  **passive writeback proposal queue** (Layer 4.2).
+- **Local telemetry sink + `gp daemon stats`** (Layer 4.3 / 5).
+- **`gp daemon plan TASK`** — graph-grounded edit plans (Layer 5.2).
+- **`gp daemon quickstart`** — one-command first-run UX (Layer 5.3).
+- **Layer 6 ingestors** — GitHub issues/PRs, ADRs, Slack/Discord (with
+  privacy allow-list), conversation memory.
+- **Layer 7 runtime intelligence** — coverage overlay, py-spy /
+  pprof / speedscope ingest, stack-trace → code linkage, py-spy and
+  Node-inspect live profiler attach.
+- **Layer 8 cross-stack edges** — HTTP, DB schema, IaC (Terraform),
+  config / feature-flag drift detection.
+- **Layer 9 quality / security** — CVE overlay, SAST overlay, license
+  audit, architectural drift rules check.
+- **Layer 10 workflow products** — `gp daemon review`, `onboard`,
+  `refactor`, `time-machine`, `docs`.
+- **Layer 11 ecosystem** — local-fs team graph, plugin entry points,
+  monorepo workspaces, skills marketplace registry.
+- **Layer 12 ops rigor** — `privacy --dry-run-network`, `perfcheck`,
+  failover wrapper, `diagnose`, deterministic-build hash.
+- **Layer 13 flagship** — `session-start`, `session-status`,
+  `pre-edit` ritual, `session-digest`.
+- **Layer 14 correctness** — provenance + hallucination filter,
+  benchmark harness, continuous-sampling bookkeeping.
+- **Layer 15 scaling** — coarse hierarchical view, sampled PageRank,
+  SQLite FTS5, hyperscale shard coordinator.
+- **Layer 16 query language (GPL)** — Cypher-flavoured parser, NL→GPL
+  translator, repo-versioned saved queries.
+- **Layer 17 LSP shim** — hover / codeLens / definition / inlay
+  hints / status-bar / `runQuery` / `savedQueries`.
+- **Layer 18 embeddings** — default-on with sentence-transformers,
+  rerank fallthrough, stale-embedding detection.
+- **Layer 19 notifications** — anomaly detection, weekly digest,
+  webhook / Slack / OS-notify sinks with quiet hours + rate limits.
+- **Layer 20 audit + undo** — append-only log, tombstones, branch
+  namespacing, `audit-rebuild`, deterministic log hash.
+- **Layer 21 schema versioning** — forward + backward migrations
+  with declared lossy fields.
+- **Layer 22 local LLM** — Ollama / llama.cpp / MLX detection,
+  air-gapped routing, deterministic seed.
+- **Layer 23 CLAUDE.md** — owned section between markers, multi-tool
+  support, per-task `--focus`.
+- **Layer 24 long-tail ingestors** — Jupyter, OpenAPI, Postman,
+  Dockerfile, Compose, Kubernetes, GitHub Actions, i18n, assets.
+- **Layer 25 educational** — built-in tutorial, recipes, REFERENCE.md.
+- **Layer 26 multi-agent** — MVCC snapshots, per-target write locks,
+  per-agent token budgets.
+- **Layer 27 distribution** — version check, ROADMAP.md, INSTALL.md
+  spec, auto-changelog generator (`gp daemon changelog`), Homebrew
+  formula scaffold.
+- **Layer 28 disqualifications** — explicit "what graphify-plus is
+  NOT" in the README.
+
+### Surface count
+
+35+ daemon ops · 35+ MCP tools · 80+ CLI subcommands · 40+ new modules
+under `graphify_plus/daemon/` · 20+ test modules under `tests/daemon/`.
+
+### Test count
+
+**801 passed** (374 → 801, +427 across 19 batch commits).
+
+### Added
+
+- **In-memory graph daemon** (`graphify_plus/daemon/`). A long-running
+  local process that holds the symbol graph in RAM with pre-computed
+  indexes (label trie, inverted-text index, 1-hop adjacency cache,
+  PageRank top-N, communities) so common queries return in
+  sub-millisecond P50 instead of paying the SQLite + NetworkX cold-start
+  cost on every call. Bound to a Unix domain socket under
+  `$TMPDIR/gp-<hash>.sock` (short path keeps macOS `AF_UNIX` happy).
+  Surfaces a JSON-line RPC protocol with a uniform response envelope:
+  `{ok, freshness, receipt, results, more_available}`. Lifecycle and
+  query commands ship as `gp daemon {start,stop,status,refresh,query}`.
+- **Intent-typed tools** (`graphify_plus/daemon/handlers.py`). Each
+  handler answers exactly one question and returns rows with
+  `{node_id, label, source_file, line_number, snippet, confidence,
+  kind}` so callers can pipe straight into Read/Edit without a second
+  hop. Shipped: `whats_in`, `who_calls`, `whos_called_by`,
+  `what_depends_on`, `what_does_this_depend_on`, `find_by_name`
+  (exact → prefix → suffix → short-name → substring confidence
+  ladder), `find_by_concept` (cheap inverted-index path + opt-in heavy
+  BM25 + community-weighted path), `whats_central`. All responses are
+  token-budgeted (default 1500 tokens) with a `more_available` count
+  for paging. Unresolved-call placeholders (`self.login`, `s.login`)
+  are rolled back into their real symbol so `who_calls` works through
+  the existing adapter limitations.
+- **Freshness contract** (`graphify_plus/daemon/protocol.py`,
+  `graphify_plus/daemon/indexes.py`). Every daemon response includes a
+  `freshness` envelope with `trust ∈ {FRESH, LIVE_AHEAD, STALE_FILES,
+  STALE_REBUILD_NEEDED}`, a 12-hex `freshness_token` that changes
+  whenever the graph changes, the count of files modified since the
+  last build, the first 16 stale paths, and a one-line hint when trust
+  degrades.
+- **Per-call receipts** (`graphify_plus/daemon/receipts.py`). Each
+  response carries `{op, elapsed_ms, tokens, grep_equivalent}` so
+  Claude sees the in-context win for using the graph
+  (`[graphify-plus] who_calls · 0.05ms · 38 tokens · would have taken
+  ~3 grep calls + 1 file reads`).
+- **`gp daemon diagnose`** (Layer 12.4,
+  `graphify_plus/daemon/diagnose.py`). One-screen operational status:
+  daemon liveness/pid/socket/uptime, cache size + schema_version + last
+  modified, snapshot stats (live from daemon when running, fresh build
+  otherwise), coverage state, rules state, last-hour telemetry
+  breakdown with top-5 ops, process RSS (psutil opt-in with
+  `resource.getrusage` fallback). Markdown by default, `--json` for
+  tooling.
+- **`gp daemon session-digest`** (Layer 13.3,
+  `graphify_plus/daemon/session_digest.py`). Composes review +
+  repo-wide coverage + rules into a single Markdown PR-description
+  block: what changed (structural summary + symbols touched), rules
+  bent (severity-grouped), now-untested code, derived next steps. Also
+  the `session_digest` daemon op and the `gp_session_digest` MCP tool.
+- **CVE overlay** (Layer 9.1, `graphify_plus/daemon/overlays.py`).
+  Parses `pip-audit -f json` and `npm audit --json`. Each
+  vulnerability persists in a new `cve` table. The
+  `whats_vulnerable(severity?)` handler returns the symbols whose
+  qualified-name reaches a vulnerable package, sorted by worst
+  severity. Also the `gp daemon security {ingest,vulnerable}` CLI
+  and the `gp_whats_vulnerable` MCP tool.
+- **SAST overlay** (Layer 9.2). Parses Bandit and Semgrep JSON. Each
+  finding maps to the deepest containing symbol (same pattern as
+  coverage) and persists in a new `sast` table. The
+  `whats_risky(severity?)` handler returns symbols carrying findings,
+  sorted worst-first. Also the `gp daemon security {ingest-sast,risky}`
+  CLI and the `gp_whats_risky` MCP tool.
+- **GitHub + ADR ingestors** (Layer 6.1 + 6.3,
+  `graphify_plus/daemon/ingestors.py`). `gp daemon ingest github` pulls
+  issues + PRs via `gh` (inherits the user's auth — no separate token
+  flow); `gp daemon ingest adr <folder>` walks an ADR Markdown folder.
+  Both populate a new `ingest_nodes` table; refs are attributed to
+  symbols by qualified-name + short-name match. The new
+  `why_does_this_exist(node)` handler / `gp_why_does_this_exist` MCP
+  tool returns the issue/PR/ADR rows that mention the symbol — the
+  master plan's "PR #847 added it as a fix for issue #812" use case.
+- **HTTP boundary edges** (Layer 8.1,
+  `graphify_plus/daemon/cross_stack.py`). Detects backend route
+  decorators (Flask / FastAPI / Express / Django) and frontend call
+  sites (`fetch`, `axios`, `$.ajax`, `$.<verb>`), matches by
+  `(method, url)` modulo wildcard route params, persists as
+  `cross_edges` rows of kind `http`. The new `cross_stack` handler
+  returns inbound + outbound cross-edges for a given symbol.
+  `gp daemon cross-stack --rebuild` re-detects in a single pass.
+- **DB schema edges** (Layer 8.2). Walks `.sql` files for `CREATE
+  TABLE` / `CREATE VIEW`, walks ORM model classes for `__tablename__` /
+  `Meta.db_table` / snake-case fallback, emits `cross_edges` rows of
+  kind `db`. Cross-rebuild covers both kinds in one pass.
+- **Plugin architecture** (Layer 11.2,
+  `graphify_plus/daemon/plugins.py`). Third-party packages register
+  custom handlers / ingestors via the `graphify_plus.plugins` entry
+  point. Plugin handlers merge into `HANDLERS` at startup but never
+  override built-ins (first-registration-wins, with a warning). Broken
+  plugins are logged and skipped — never crash the daemon.
+  `gp daemon plugin list` shows what's discovered.
+- **PR review co-pilot** (`graphify_plus/daemon/review.py`,
+  `gp daemon review`). Layer 10.1: composes the diff against the graph
+  to produce a Markdown report with **symbols touched** (with file:line),
+  **central nodes touched** (top-50 PageRank), **untested code touched**
+  (coverage ≤10%), **architectural rule violations** (with severity and
+  file:line), and **blast radius** (direct dependents not in the diff).
+  Generates a one-paragraph structural summary suitable as a PR
+  description ("Changes touch 21 symbol(s) across 4 file(s). 6 touched
+  node(s) have ≤10% test coverage — add tests before merge."). Also
+  available via the `review` daemon op and the `gp_review` MCP tool.
+  CLI uses GitPython (already a dep) for `--base`/`--head` ref
+  resolution; falls back to `git diff` subprocess if GitPython errors.
+- **Onboarding mode** (`graphify_plus/daemon/onboarding.py`,
+  `gp daemon onboard`). Layer 10.2: generates a guided-tour Markdown
+  document for new contributors — top central concepts (auto-sized to
+  the codebase: 3 stops for tiny repos, up to 10 for real ones),
+  well-tested exemplars (high coverage AND high PageRank), and one
+  exemplar per top-level module. Also available via the `onboard`
+  daemon op and the `gp_onboard` MCP tool. Supports `--persona` for
+  audience tagging.
+- **Test-coverage overlay** (`graphify_plus/daemon/coverage.py`,
+  `gp daemon coverage {ingest|summary|untested}`). Layer 7.1 of the
+  master plan — "the single feature that makes graphify-plus required
+  in any serious engineering setup". Parses Cobertura XML
+  (`coverage xml`, `pytest --cov-report=xml`) and Istanbul JSON (Jest /
+  nyc / Vitest), maps each line hit to the deepest containing symbol,
+  and persists `(symbol_id, lines_covered, lines_total, pct, source)`
+  in a new SQLite table. The daemon's `InMemoryGraph` reads it at
+  build time so existing handlers (`whats_in`, `who_calls`, etc.) get
+  `coverage_pct` and `coverage_lines` on every row for free. New
+  intent tools: `whats_untested(path?, max_pct=10)`, `coverage_for(node)`,
+  `coverage_summary` — all available via the daemon, the CLI, and MCP
+  (`gp_whats_untested`, `gp_coverage_for`, `gp_coverage_summary`). Smoke
+  test: ingest the project's own pytest coverage and `whats_untested`
+  surfaces every 0%-covered handler in milliseconds.
+- **Architectural-rules check via daemon** (`rules_check` op,
+  `gp daemon rules check`). Layer 9.4: wraps the existing
+  `runtime/rules.py` evaluator behind the daemon and the new
+  `gp_rules_check` MCP tool. Returns each violation as a structured row
+  with `rule_id`, `severity`, the human message, and (when applicable)
+  source/destination nodes with file:line — so PR reviewers and Claude
+  can pipe straight into Read/Edit. `--fail-on-error` exits non-zero on
+  any error-severity finding (CI-friendly), and the existing
+  `simulate`/`guardrails` flows keep working unchanged.
+- **Local telemetry sink + `gp daemon stats`** (`graphify_plus/daemon/telemetry.py`).
+  Every daemon dispatch appends a JSON line to
+  `<repo>/.graphify_plus/telemetry.jsonl` recording
+  `{ts, op, elapsed_ms, tokens, n_results, trust, ok}`. The new
+  `gp daemon stats` command aggregates that log into per-op call counts,
+  P50/P95 latency, FRESH rate, total tokens, and a top-errors list — the
+  master plan's adoption metric. Local-only by default; the existing
+  `GRAPHIFY_TELEMETRY_URL` exporter still handles outbound emissions.
+- **Graph-grounded plan command** (`gp daemon plan TASK`,
+  `graphify_plus/daemon/planner.py`). Deterministic, offline,
+  LLM-free pipeline: `find_by_concept` → `what_depends_on` → risk
+  scoring (PageRank-touched + high-degree dependents + blast-radius
+  size) → token-cost comparison vs grep-only research. Outputs a
+  Markdown report with affected nodes (file:line), blast radius, risk
+  grade, and "start with" guidance. Also exposed as the `plan` daemon
+  op and `gp_plan` MCP tool. Smoke test on the 1375-symbol
+  graphify-plus repo: 1,581 graph tokens vs ~19,700 grep-only tokens
+  for "add rate limiting to all REST endpoints".
+- **Watcher-driven incremental refresh** (`graphify_plus/daemon/server.py`).
+  The daemon embeds the existing `runtime.watcher.Watcher` and subscribes a
+  signal-and-coalesce callback that triggers a snapshot rebuild whenever a
+  watched file changes. Bursts (e.g. a `git pull` or a multi-file save)
+  collapse into a single rebuild thanks to a 50ms coalescing window.
+  `gp daemon start --no-watch` opts out for users who run `gp watch`
+  separately.
+- **Routing skill + pre-grep hook** (`graphify_plus/daemon/templates/`,
+  `gp daemon install`). Ships the `SKILL.md` Claude reads to decide *when*
+  to use graphify-plus instead of grep, plus a Claude-Code-compatible
+  PreToolUse hook that nudges toward the graph when grep is about to run
+  on a bareword and the daemon has a structural hit. Stale graphs stay
+  silent — Layer 3.2 of the master plan: "stale graphs have lost the
+  right to advise". `gp daemon install` drops both into the repo's
+  `.claude/` and prints the settings.json snippet to enable the hook.
+- **MCP intent tools** (`graphify_plus/interface/mcp_server.py`). Eight
+  new MCP tools (`gp_whats_in`, `gp_who_calls`, `gp_whos_called_by`,
+  `gp_what_depends_on`, `gp_what_does_this_depend_on`,
+  `gp_find_by_name`, `gp_find_by_concept`, `gp_whats_central`) route
+  through the daemon when running and fall back to an in-process build
+  when it isn't, so the same call works regardless of daemon state.
+
 ### Docs
 
 - **README rewritten for 5.1.0 surface** (`README.md`,

@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Any
 
 from ..core.symbol_graph import build as build_graph
+from ..daemon import DaemonClient, DaemonNotRunning, InMemoryGraph
+from ..daemon.handlers import HANDLERS as INTENT_HANDLERS
+from ..daemon.receipts import make_receipt
 from ..query.budget import frame_to_budget
 from ..query.partition import compute_partition
 from ..query.semantic import find as semantic_find
@@ -230,6 +233,206 @@ def tool_blast_radius(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ---------- intent-tool wrapper (daemon-backed with direct fallback) -----
+
+
+def _run_intent(op: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Route an intent tool through the daemon when available, else execute
+    in-process by building the in-memory graph from the on-disk cache.
+
+    Same response envelope either way:
+        {ok, freshness, receipt, results, more_available, [extra]}
+    """
+    repo = Path(args.pop("repo", ".")).resolve()
+    handler_args = {k: v for k, v in args.items() if k != "request_id"}
+
+    client = DaemonClient(repo)
+    if client.is_running():
+        try:
+            return client.call(op, handler_args)
+        except DaemonNotRunning:
+            pass  # fall through to direct path
+
+    # Direct path: build the snapshot from disk. Slower (cold-start the whole
+    # daemon for one query), but a useful safety net before users have run
+    # `gp daemon start`.
+    if op in ("ping", "graph_stats"):
+        # graph_stats without daemon is meaningless other than as a probe.
+        return {"ok": True, "running": False, "results": [], "more_available": 0}
+    handler = INTENT_HANDLERS.get(op)
+    if handler is None:
+        return {
+            "ok": False,
+            "error": {"code": "UNKNOWN_OP", "message": f"unknown intent op: {op}"},
+        }
+
+    store = Store(cache_path(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+
+    import time as _time
+
+    t0 = _time.perf_counter()
+    payload = handler(snap, handler_args)
+    elapsed_ms = (_time.perf_counter() - t0) * 1000.0
+    if "error" in payload:
+        return {"ok": False, "error": payload["error"]}
+    results = payload.get("results", []) or []
+    return {
+        "ok": True,
+        "freshness": snap.freshness(),
+        "receipt": make_receipt(op, elapsed_ms, results, len(results)),
+        "results": results,
+        "more_available": payload.get("more_available", 0),
+        "extra": payload.get("extra", {}),
+    }
+
+
+def tool_whats_in(args: dict[str, Any]) -> dict[str, Any]:
+    """List the symbols inside a file or directory, ranked by structural weight."""
+    return _run_intent("whats_in", args)
+
+
+def tool_who_calls(args: dict[str, Any]) -> dict[str, Any]:
+    """Direct callers (or referencers) of a symbol."""
+    return _run_intent("who_calls", args)
+
+
+def tool_whos_called_by(args: dict[str, Any]) -> dict[str, Any]:
+    """Direct callees of a symbol."""
+    return _run_intent("whos_called_by", args)
+
+
+def tool_what_depends_on(args: dict[str, Any]) -> dict[str, Any]:
+    """Inbound-edge dependents (calls, refs, imports, extends, implements)."""
+    return _run_intent("what_depends_on", args)
+
+
+def tool_what_does_this_depend_on(args: dict[str, Any]) -> dict[str, Any]:
+    """Outbound dependencies of a symbol."""
+    return _run_intent("what_does_this_depend_on", args)
+
+
+def tool_find_by_name(args: dict[str, Any]) -> dict[str, Any]:
+    """Fuzzy label match. Returns confidence-ranked candidates."""
+    return _run_intent("find_by_name", args)
+
+
+def tool_find_by_concept(args: dict[str, Any]) -> dict[str, Any]:
+    """Concept / natural-language search over the symbol graph."""
+    return _run_intent("find_by_concept", args)
+
+
+def tool_whats_central(args: dict[str, Any]) -> dict[str, Any]:
+    """Top-N central symbols by PageRank."""
+    return _run_intent("whats_central", args)
+
+
+def tool_plan(args: dict[str, Any]) -> dict[str, Any]:
+    """Graph-grounded edit plan for a natural-language task description."""
+    return _run_intent("plan", args)
+
+
+def tool_whats_untested(args: dict[str, Any]) -> dict[str, Any]:
+    """Symbols at or below max_pct test coverage in the requested scope."""
+    return _run_intent("whats_untested", args)
+
+
+def tool_coverage_for(args: dict[str, Any]) -> dict[str, Any]:
+    """Coverage stats for a single symbol."""
+    return _run_intent("coverage_for", args)
+
+
+def tool_coverage_summary(args: dict[str, Any]) -> dict[str, Any]:
+    """Repo-wide test-coverage roll-up + worst-N files."""
+    return _run_intent("coverage_summary", args)
+
+
+def tool_rules_check(args: dict[str, Any]) -> dict[str, Any]:
+    """Run architectural-drift rules from .graphify_plus/rules.yaml."""
+    return _run_intent("rules_check", args)
+
+
+def tool_review(args: dict[str, Any]) -> dict[str, Any]:
+    """PR review co-pilot — touched/central/untested + rules + blast radius."""
+    return _run_intent("review", args)
+
+
+def tool_onboard(args: dict[str, Any]) -> dict[str, Any]:
+    """Onboarding walkthrough — central nodes + per-module exemplars."""
+    return _run_intent("onboard", args)
+
+
+def tool_session_digest(args: dict[str, Any]) -> dict[str, Any]:
+    """End-of-session summary: review + coverage + rules + next steps."""
+    return _run_intent("session_digest", args)
+
+
+def tool_whats_vulnerable(args: dict[str, Any]) -> dict[str, Any]:
+    """CVEs reachable from application code (Layer 9.1)."""
+    return _run_intent("whats_vulnerable", args)
+
+
+def tool_whats_risky(args: dict[str, Any]) -> dict[str, Any]:
+    """SAST findings attached to symbols (Layer 9.2)."""
+    return _run_intent("whats_risky", args)
+
+
+def tool_why_does_this_exist(args: dict[str, Any]) -> dict[str, Any]:
+    """ADRs / issues / PRs that mention this symbol (Layer 6.1 + 6.3)."""
+    return _run_intent("why_does_this_exist", args)
+
+
+def tool_gpl_query(args: dict[str, Any]) -> dict[str, Any]:
+    """Run a GPL (Graphify-Plus Query Language) query (Layer 16)."""
+    return _run_intent("gpl_query", args)
+
+
+def tool_pre_edit(args: dict[str, Any]) -> dict[str, Any]:
+    """Run the master plan's 8-step pre-edit ritual (Layer 13.2)."""
+    repo = Path(args.get("repo", ".")).resolve()
+    target = (args.get("target") or args.get("node") or "").strip()
+    if not target:
+        return {"ok": False, "error": {"code": "BAD_REQUEST", "message": "missing 'target'"}}
+    from ..daemon.indexes import InMemoryGraph
+    from ..daemon.session_manager import pre_edit
+    from ..runtime.store import Store, cache_path as _cp
+
+    if not _cp(repo).exists():
+        return {"ok": False, "error": {"code": "NO_GRAPH", "message": "run gp init first"}}
+    store = Store(_cp(repo))
+    try:
+        snap = InMemoryGraph.from_store(store, repo)
+    finally:
+        store.close()
+    rep = pre_edit(snap, target)
+    return {"ok": True, "results": [], "more_available": 0, "extra": {"pre_edit": rep.to_dict()}}
+
+
+def tool_diagnose(args: dict[str, Any]) -> dict[str, Any]:
+    """gp daemon diagnose snapshot (Layer 12.4) — operational status."""
+    from ..daemon.diagnose import diagnose
+
+    repo = Path(args.get("repo", ".")).resolve()
+    return {"ok": True, "results": [], "more_available": 0, "extra": diagnose(repo)}
+
+
+def tool_cross_stack(args: dict[str, Any]) -> dict[str, Any]:
+    """Cross-stack edges (Layer 8 — HTTP + DB + IaC)."""
+    return _run_intent("cross_stack", args)
+
+
+def tool_session_status(args: dict[str, Any]) -> dict[str, Any]:
+    """Layer 13 — is the always-on environment healthy?"""
+    from ..daemon.session_manager import session_status
+
+    repo = Path(args.get("repo", ".")).resolve()
+    state = session_status(repo)
+    return {"ok": True, "results": [], "more_available": 0, "extra": state.__dict__}
+
+
 # ---------- registry ----------------------------------------------------
 
 
@@ -241,6 +444,42 @@ TOOLS: dict[str, Callable[[dict], dict]] = {
     "gp_simulate": tool_simulate,
     "gp_guardrails": tool_guardrails,
     "gp_blast_radius": tool_blast_radius,
+    # Sprint 2 intent-typed tools (daemon-backed):
+    "gp_whats_in": tool_whats_in,
+    "gp_who_calls": tool_who_calls,
+    "gp_whos_called_by": tool_whos_called_by,
+    "gp_what_depends_on": tool_what_depends_on,
+    "gp_what_does_this_depend_on": tool_what_does_this_depend_on,
+    "gp_find_by_name": tool_find_by_name,
+    "gp_find_by_concept": tool_find_by_concept,
+    "gp_whats_central": tool_whats_central,
+    "gp_plan": tool_plan,
+    # Sprint 8 — test-coverage overlay:
+    "gp_whats_untested": tool_whats_untested,
+    "gp_coverage_for": tool_coverage_for,
+    "gp_coverage_summary": tool_coverage_summary,
+    # Sprint 9.4 — architectural drift rules:
+    "gp_rules_check": tool_rules_check,
+    # Sprint 10.1 — PR review co-pilot:
+    "gp_review": tool_review,
+    # Sprint 10.2 — onboarding walkthrough:
+    "gp_onboard": tool_onboard,
+    # Layer 13.3 — post-session digest:
+    "gp_session_digest": tool_session_digest,
+    # Layer 9 — security overlays:
+    "gp_whats_vulnerable": tool_whats_vulnerable,
+    "gp_whats_risky": tool_whats_risky,
+    # Layer 6 — external-source ingest:
+    "gp_why_does_this_exist": tool_why_does_this_exist,
+    # Layer 16 — query language:
+    "gp_gpl_query": tool_gpl_query,
+    # Layer 13 — flagship integration:
+    "gp_pre_edit": tool_pre_edit,
+    "gp_session_status": tool_session_status,
+    # Layer 12.4 — diagnose:
+    "gp_diagnose": tool_diagnose,
+    # Layer 8 — cross-stack:
+    "gp_cross_stack": tool_cross_stack,
 }
 
 
@@ -323,4 +562,28 @@ __all__ = [
     "tool_simulate",
     "tool_guardrails",
     "tool_blast_radius",
+    "tool_whats_in",
+    "tool_who_calls",
+    "tool_whos_called_by",
+    "tool_what_depends_on",
+    "tool_what_does_this_depend_on",
+    "tool_find_by_name",
+    "tool_find_by_concept",
+    "tool_whats_central",
+    "tool_plan",
+    "tool_whats_untested",
+    "tool_coverage_for",
+    "tool_coverage_summary",
+    "tool_rules_check",
+    "tool_review",
+    "tool_onboard",
+    "tool_session_digest",
+    "tool_whats_vulnerable",
+    "tool_whats_risky",
+    "tool_why_does_this_exist",
+    "tool_gpl_query",
+    "tool_pre_edit",
+    "tool_session_status",
+    "tool_diagnose",
+    "tool_cross_stack",
 ]
