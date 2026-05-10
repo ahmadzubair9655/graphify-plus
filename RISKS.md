@@ -236,28 +236,28 @@ way, this should not stay tolerated indefinitely.
 
 ---
 
-## R13 — 1-hop tail latency on medium graphs (empirically found)
+## R13 — 1-hop tail latency on medium graphs (RESOLVED in v6.0.1)
 
-**Symptom**: on a 38k-symbol synthetic codebase the `1_hop` workload
-shows P99 = 1.78s in the warm/hot cache states (P50 stays at
-~0.01ms). A session with hundreds of `who_calls` calls per hour
-will hit visible delays on the long tail.
+**Status**: ✓ FIXED.
 
-**Root cause**: `_inbound` does a per-call linear scan for placeholder
+**Symptom (v6.0.0)**: on a 38k-symbol synthetic codebase the `1_hop`
+workload showed P99 = 1.78s in the warm/hot cache states (P50 stayed
+at ~0.01ms).
+
+**Root cause**: `_inbound` did a per-call linear scan for placeholder
 aliases keyed on the target's short name. For names like `compute`
-that map to hundreds of placeholders, iterating their inbound edges
-is the linear-in-placeholder-fanout cost. Most calls miss the tail;
-the 99th-percentile common-name calls hit it.
+that map to hundreds of placeholders, the nested O(P × C) iteration
+became the bottleneck.
 
-**Mitigation in place**: median latency is fine; the tail is a
-correctness-preserving slow path, not wrong answers. Hot-cache P99
-on the small repo (1,371 symbols) is 0.4ms — the issue scales with
-graph size.
+**Fix (v6.0.1)**: precomputed the (short_name → callers) join at
+snapshot build time as `callers_by_short_name`. Built once per
+snapshot; query-time iteration is now flat O(R) over the callers
+list instead of nested over placeholders + per-placeholder
+in_neighbours dict lookups.
 
-**Follow-up**: precompute the placeholder→callers join at snapshot
-build time so query-time becomes O(1) instead of O(fanout). Target
-v6.0.1. Until then, document this in release notes so reviewers see
-the medium-repo number honestly.
+**Result on the same 38k-symbol codebase**: 1-hop P99 dropped from
+**1,780ms → 2.0ms** (~890× faster). Every cell in the medium-repo
+table now passes the 500ms target.
 
 **Reproduce**:
 

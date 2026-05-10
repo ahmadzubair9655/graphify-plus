@@ -195,6 +195,24 @@ The 🟡 items above are the ones where the review is most likely to push back. 
 | 22 Local LLM | Detection probes only | TBD | v6.1 | Deterministic-output integration test against a real local Ollama model |
 | 27.1 Install | Spec + formula scaffold | TBD | v6.0.1 | Published Homebrew tap with real SHAs |
 
-Owners marked **TBD** reflect honest project state — none of these have an assigned individual yet. Naming someone in the next planning cycle is the next step. The target column is the *promise to readers*: anyone tracking this roadmap can hold the project to that release.
+Owners marked **TBD** reflect honest project state. The target column is the *promise to readers*: anyone tracking this roadmap can hold the project to that release.
+
+**Want to own one?** Each 🟡 line above has — or should have — a [`help wanted: needs owner`](https://github.com/ahmadzubair9655/graphify-plus/labels/help%20wanted%3A%20needs%20owner) issue. Comment on the issue matching the layer you'd take, and the owner column updates from `TBD` to your handle. This is the *claim path* that prevents 🟡 from rotting into permanent-TBD: yellow without a claimable issue is the same as no plan, so we make the issue exist before merging this PR.
+
+Tracking issues to open (one per 🟡, post-merge):
+
+| Layer | Issue title | Label |
+|---|---|---|
+| 6.2 | Slack live API ingest with OAuth + per-channel allow-list prompt | help wanted: needs owner |
+| 7.4 | Node CDP profiler client (programmatic CPU profile capture) | help wanted: needs owner |
+| 7.4 | MLX profiler attach + integration test | help wanted: needs owner |
+| 11.1 | Self-hosted team graph server with auth + conflict UI | help wanted: needs owner |
+| 11.4 | Hosted skills marketplace registry index | help wanted: needs owner |
+| 14.3 | Curated multi-repo benchmark corpus (3 hand-labelled OSS repos) | help wanted: needs owner |
+| 15.5 | Hyperscale 10M+ node load test + adaptive sharding | help wanted: needs owner |
+| 16.2 | LLM-backed NL→GPL translator (opt-in extra) | help wanted: needs owner |
+| 17.3 | VS Code extension consuming `graphifyPlus/statusBar` | help wanted: needs owner |
+| 22 | Deterministic-output integration test against a real local Ollama model | help wanted: needs owner |
+| 27.1 | Publish Homebrew tap with real SHAs | help wanted: needs owner |
 
 See [`RISKS.md`](RISKS.md) for the failure modes that may surface post-merge against the 🟢 items.

@@ -104,6 +104,27 @@ def run_quickstart(repo: Path) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         out["steps"].append({"step": "recipes", "error": str(exc)})
 
+    # Capture today's adoption rate as the comparison baseline. Without
+    # this every future `gp daemon adoption` is an absolute number with
+    # no comparison — and the rewrite's whole premise is "this changed
+    # Claude's behaviour vs the prior state." Set on every install for
+    # free so the delta view is the default.
+    try:
+        from .adoption import adoption_report, write_baseline
+
+        rep = adoption_report(repo)
+        baseline_file = write_baseline(repo, rep, label="quickstart")
+        out["steps"].append(
+            {
+                "step": "adoption-baseline",
+                "label": "quickstart",
+                "captured_rate": rep.adoption_rate,
+                "path": str(baseline_file),
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        out["steps"].append({"step": "adoption-baseline", "error": str(exc)})
+
     return out
 
 

@@ -10,12 +10,12 @@ answer to the review's 'medium-repo numbers needed' ask.
 
 | workload | cold P99 | warm P99 | hot P99 | hot P50 |
 |---|---|---|---|---|
-| name_match | 0.027ms | 11.34ms | 10.069ms | 0.004ms |
-| concept_search | 0.028ms | 0.003ms | 0.002ms | 0.002ms |
-| 1_hop | 0.005ms | 1780.584ms | 1672.268ms | 0.011ms |
-| multi_hop | 0.009ms | 0.007ms | 0.001ms | 0.001ms |
+| name_match | 0.012ms | 8.219ms | 7.673ms | 0.003ms |
+| concept_search | 0.026ms | 0.003ms | 0.002ms | 0.002ms |
+| 1_hop | 0.005ms | 2.008ms | 1.324ms | 0.002ms |
+| multi_hop | 0.007ms | 0.004ms | 0.001ms | 0.001ms |
 
-✗ 2 cell(s) over target P99 — see ✗ markers above
+✓ every cell within target
 
 ## How to reproduce
 

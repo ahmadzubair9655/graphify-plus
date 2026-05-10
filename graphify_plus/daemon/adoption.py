@@ -126,6 +126,15 @@ class AdoptionReport:
     # baseline_* fields are None and delta_* fields are 0.
     baseline_adoption_rate: float | None = None
     delta_adoption_rate: float = 0.0
+    # Latency distribution of *real* graph queries in the window. The
+    # perfcheck table is a proxy; this is what users actually feel.
+    # One outlier query above 100ms is a louder signal than a thousand
+    # fast ones, so we surface P50/P95/P99 + slowest_op.
+    query_latency_p50_ms: float = 0.0
+    query_latency_p95_ms: float = 0.0
+    query_latency_p99_ms: float = 0.0
+    slowest_op: str = ""
+    slowest_op_ms: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
@@ -173,6 +182,22 @@ def adoption_report(repo: Path, *, window_hours: int = 24) -> AdoptionReport:
     baseline_adoption = baseline.get("adoption_rate") if baseline else None
     delta = (adoption - baseline_adoption) if baseline_adoption is not None else 0.0
 
+    # Latency distribution of real queries (Production P99, not synthetic
+    # perfcheck). One slow real query is a louder signal than 1k fast
+    # ones — surface it.
+    p50 = p95 = p99 = 0.0
+    slow_op = ""
+    slow_ms = 0.0
+    if graph_in_window_rows:
+        latencies = sorted(float(r.get("elapsed_ms", 0.0) or 0.0) for r in graph_in_window_rows)
+        n = len(latencies)
+        p50 = latencies[n // 2]
+        p95 = latencies[min(int(n * 0.95), n - 1)]
+        p99 = latencies[min(int(n * 0.99), n - 1)]
+        worst = max(graph_in_window_rows, key=lambda r: float(r.get("elapsed_ms", 0.0) or 0.0))
+        slow_op = str(worst.get("op", ""))
+        slow_ms = float(worst.get("elapsed_ms", 0.0) or 0.0)
+
     return AdoptionReport(
         window_hours=window_hours,
         graph_calls=graph_in_window,
@@ -186,6 +211,11 @@ def adoption_report(repo: Path, *, window_hours: int = 24) -> AdoptionReport:
         nudges_followed_by_graph_call=nudge_followed,
         baseline_adoption_rate=baseline_adoption,
         delta_adoption_rate=round(delta, 3),
+        query_latency_p50_ms=round(p50, 3),
+        query_latency_p95_ms=round(p95, 3),
+        query_latency_p99_ms=round(p99, 3),
+        slowest_op=slow_op,
+        slowest_op_ms=round(slow_ms, 3),
     )
 
 
@@ -280,6 +310,18 @@ def render_report(report: AdoptionReport) -> str:
         f"= {report.nudge_accept_rate:.0%}  "
         f"(graph call within {NUDGE_ACCEPT_WINDOW_S:.0f}s of nudge)"
     )
+    if report.graph_calls > 0:
+        lines.append(
+            f"  query latency: p50={report.query_latency_p50_ms}ms  "
+            f"p95={report.query_latency_p95_ms}ms  "
+            f"p99={report.query_latency_p99_ms}ms"
+        )
+        if report.slowest_op_ms >= 100.0:
+            lines.append(
+                f"  ⚠ slowest production query: {report.slowest_op} "
+                f"= {report.slowest_op_ms}ms (above 100ms — "
+                "investigate, not a perfcheck artifact)"
+            )
     if report.baseline_adoption_rate is not None:
         sign = "+" if report.delta_adoption_rate >= 0 else ""
         lines.append(
